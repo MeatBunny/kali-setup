@@ -12,8 +12,9 @@
 # Case insensitive matching for regex
 shopt -s nocasematch
 # Packages to install after update.
-_aptpackages="open-vm-tools-desktop vim htop veil-* docker.io"
+_aptpackages="open-vm-tools-desktop vim htop veil-*"
 _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit trustedsec/ptf"
+_dockercontainers="alxchk/pupy:unstable empireproject/empire"
 
 # Update all 
 if ! [[ -f ~/.updated ]]; then
@@ -29,11 +30,36 @@ if ! [[ -f ~/.updated ]]; then
     fi
 fi
 
+# Set up non-ptf git repos
 pushd /opt
 for _repo in $_githubclone; do
-    git clone https://github.com/$_repo.git
+    _dir=$(echo $_repo | cut -d'/' -f2)
+    if ! [[ -d $_dir ]]; then
+        git clone https://github.com/$_repo.git
+    else
+        pushd $_dir
+        git pull
+        popd
+    fi
 done
 popd
 
+# Set up PTF.  PTF requires --update-all to be run in its working directory.
 cat ptf.config > /opt/ptf/ptf.config
-/opt/ptf/ptf --update-all
+pushd /opt/ptf
+./ptf --update-all
+popd
+
+# Set up docker
+mkdir /etc/docker/
+echo '{ "iptables": false }' > /etc/docker/daemon.json
+apt-get install -y docker.io
+systemctl enable docker
+systemctl stop docker
+systemctl daemon-reload
+systemctl start docker
+
+# Misc Kali commands
+# MSFDB init
+msfdb init
+msfdb start
