@@ -12,7 +12,7 @@
 # Case insensitive matching for regex
 shopt -s nocasematch
 # Packages to install after update.
-_aptpackages="open-vm-tools-desktop vim htop veil-*"
+_aptpackages="open-vm-tools-desktop vim htop veil-* docker.io"
 _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit trustedsec/ptf"
 
 # Update all 
@@ -28,10 +28,6 @@ if ! [[ -f ~/.updated ]]; then
         reboot
     fi
 fi
-
-# Install Docker
-echo "Installing Docker"
-(curl -fsSL https://get.docker.com | bash) || exit 1
 
 pushd /opt
 for _repo in $_githubclone; do
