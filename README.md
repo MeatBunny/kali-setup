@@ -1,2 +1,2 @@
 # kali-setup
-My personal setup script to add extra tools to a Kali install.
+My personal setup script to add extra tools to a Kali install from various git repositories.  
