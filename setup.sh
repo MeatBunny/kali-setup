@@ -12,7 +12,7 @@
 # Case insensitive matching for regex
 shopt -s nocasematch
 # Packages to install after update.
-_aptpackages="open-vm-tools-desktop vim htop veil-* docker.io terminator"
+_aptpackages="open-vm-tools-desktop vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv"
 _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit trustedsec/ptf"
 _dockercontainers="alxchk/pupy:unstable empireproject/empire"
 
@@ -65,6 +65,16 @@ systemctl start docker
 for _image in $_dockercontainers; do
     docker pull $_image
 done
+
+# Set up Pupy correctly
+pushd /opt
+git clone --recursive https://github.com/n1nj4sec/pupy
+pushd pupy
+python create-workspace.py -DG pupyw
+wget https://github.com/n1nj4sec/pupy/releases/download/latest/payload_templates.txz
+tar xvf payload_templates.txz && mv payload_templates/* pupy/payload_templates/ && rm payload_templates.txz && rm -r payload_templates
+popd
+popd
 
 # Misc Kali commands
 # MSFDB init
