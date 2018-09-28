@@ -12,7 +12,7 @@
 # Case insensitive matching for regex
 shopt -s nocasematch
 # Packages to install after update.
-_aptpackages="open-vm-tools-desktop vim htop veil-*"
+_aptpackages="open-vm-tools-desktop vim htop veil-* docker.io"
 _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit trustedsec/ptf"
 _dockercontainers="alxchk/pupy:unstable empireproject/empire"
 
@@ -24,10 +24,6 @@ if ! [[ -f ~/.updated ]]; then
     apt-get dist-upgrade -y && \
     touch ~/.updated
     apt-get install -y $_aptpackages
-    read -p "Reboot? [yN]"
-    if [[ ${REPLY,,} =~ ^y ]]; then
-        reboot
-    fi
 fi
 
 # Set up non-ptf git repos
@@ -45,21 +41,36 @@ done
 popd
 
 # Set up PTF.  PTF requires --update-all to be run in its working directory.
-cat ptf.config > /opt/ptf/ptf.config
+#cat ptf.config > /opt/ptf/ptf.config
+cat << EOF > /opt/ptf/ptf.config
+BASE_INSTALL_PATH="/opt"
+LOG_PATH="src/logs/ptf.log"
+AUTO_UPDATE="ON"
+IGNORE_THESE_MODULES=""
+INCLUDE_ONLY_THESE_MODULES="modules/pivoting/3proxy,modules/webshells/b374k,modules/powershell/babadook,modules/powershell/bloodhound,modules/post-exploitation/empire,modules/powershell/empire,modules/post-exploitation/creddump7,modules/pivoting/meterssh,modules/windows-tools/netripper,modules/pivoting/pivoter,modules/pivoting/rpivot,modules/windows-tools/sidestep,modules/webshells/*"
+IGNORE_UPDATE_ALL_MODULES=""
+EOF
 pushd /opt/ptf
 ./ptf --update-all
 popd
 
 # Set up docker
 mkdir /etc/docker/
-echo '{ "iptables": false }' > /etc/docker/daemon.json
-apt-get install -y docker.io
+echo -e '{\n\t"iptables": false\n}' > /etc/docker/daemon.json
 systemctl enable docker
 systemctl stop docker
 systemctl daemon-reload
 systemctl start docker
+for _image in $_dockercontainers; do
+    docker pull $_image
+done
 
 # Misc Kali commands
 # MSFDB init
 msfdb init
 msfdb start
+
+read -p "Reboot? [yN]"
+if [[ ${REPLY,,} =~ ^y ]]; then
+    reboot
+fi
