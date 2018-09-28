@@ -42,8 +42,7 @@ done
 popd
 
 # Set up PTF.  PTF requires --update-all to be run in its working directory.
-#cat ptf.config > /opt/ptf/config/ptf.config
-cat << EOF > /opt/ptf/ptf.config
+cat << EOF > /opt/ptf/config/ptf.config
 BASE_INSTALL_PATH="/opt"
 LOG_PATH="src/logs/ptf.log"
 AUTO_UPDATE="ON"
