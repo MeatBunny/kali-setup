@@ -19,6 +19,7 @@ _dockercontainers="alxchk/pupy:unstable empireproject/empire"
 # Update all 
 if ! [[ -f ~/.updated ]]; then
     echo "Updating everything"
+    pgrep packagekitd | xargs kill
     sleep 1
     apt-get update && \
     apt-get dist-upgrade -y && \
