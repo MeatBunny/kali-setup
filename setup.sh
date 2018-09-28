@@ -12,7 +12,7 @@
 # Case insensitive matching for regex
 shopt -s nocasematch
 # Packages to install after update.
-_aptpackages="open-vm-tools-desktop vim htop veil-* docker.io"
+_aptpackages="open-vm-tools-desktop vim htop veil-* docker.io terminator"
 _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit trustedsec/ptf"
 _dockercontainers="alxchk/pupy:unstable empireproject/empire"
 
@@ -42,7 +42,7 @@ done
 popd
 
 # Set up PTF.  PTF requires --update-all to be run in its working directory.
-#cat ptf.config > /opt/ptf/ptf.config
+#cat ptf.config > /opt/ptf/config/ptf.config
 cat << EOF > /opt/ptf/ptf.config
 BASE_INSTALL_PATH="/opt"
 LOG_PATH="src/logs/ptf.log"
