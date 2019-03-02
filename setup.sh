@@ -93,8 +93,12 @@ if ! [[ $_skipgithub ]]; then
 fi
 
 if ! [[ $_skipptf ]]; then
-        debug "Set up PTF.  PTF requires --update-all to be run in its working directory."
-        cat << EOF > /opt/ptf/config/ptf.config
+    debug "Set up PTF.  PTF requires --update-all to be run in its working directory."
+    if [[ $_skipgithub ]]; then
+        debug "Grabbing PTF from github since we didn't do it earlier."
+        git clone  https://github.com/trustedsec/ptf /opt/ptf
+    fi
+    cat << EOF > /opt/ptf/config/ptf.config
 BASE_INSTALL_PATH="/opt"
 LOG_PATH="src/logs/ptf.log"
 AUTO_UPDATE="ON"
@@ -102,9 +106,9 @@ IGNORE_THESE_MODULES=""
 INCLUDE_ONLY_THESE_MODULES="modules/pivoting/3proxy,modules/webshells/b374k,modules/powershell/babadook,modules/powershell/bloodhound,modules/post-exploitation/empire,modules/powershell/empire,modules/post-exploitation/creddump7,modules/pivoting/meterssh,modules/windows-tools/netripper,modules/pivoting/pivoter,modules/pivoting/rpivot,modules/windows-tools/sidestep,modules/webshells/*"
 IGNORE_UPDATE_ALL_MODULES=""
 EOF
-        pushd /opt/ptf
-        ./ptf --update-all
-        popd
+    pushd /opt/ptf
+    ./ptf --update-all
+    popd
 fi
 
 if ! [[ $_skipdocker ]]; then
