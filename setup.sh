@@ -16,7 +16,7 @@ export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
 _aptpackages="open-vm-tools-desktop vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv"
 _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit trustedsec/ptf"
-_dockercontainers="alxchk/pupy:unstable empireproject/empire"
+_dockercontainers="alxchk/pupy:unstable empireproject/empire kalilinux/kali-linux-docker"
 
 # Update all 
 if ! [[ -f ~/.updated ]]; then
@@ -91,3 +91,6 @@ popd
 # MSFDB init
 msfdb init
 msfdb start
+
+# Update mlocate
+updatedb
