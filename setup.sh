@@ -46,7 +46,7 @@ _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppol
 _dockercontainers="alxchk/pupy:unstable empireproject/empire kalilinux/kali-linux-docker"
 
 unset _skipdocker _skipptf _skippupyrat _skipautologin _skipgithub _verbose
-while getopts 'dprlgv' flag; do
+while getopts 'hdprlgv' flag; do
     case "${flag}" in
         d) _skipdocker=1 ;;
         p) _skipptf=1 ;;
