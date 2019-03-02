@@ -1,15 +1,15 @@
 #!/bin/bash
 
-#####################################
-#                                   #
-#  A simple Kali setup script.      #
-#                                   #
-#  curl -O https://bit.ly/2IO6kKN   #
-#  bash setup.sh -h                 #
-#                                   #
-#  Don't @ me.                      #
-#                                   #
-#####################################
+##############################################
+#                                           #
+#  A simple Kali setup script.              #
+#                                           #
+#  curl -o setup.sh https://bit.ly/2IO6kKN  #
+#  bash setup.sh -h                         #
+#                                           #
+#  Don't @ me.                              #
+#                                           #
+#############################################
 
 usage () {
     echo -e "\e[94m$0 [-d] [-v] [-h]\e[0m"
