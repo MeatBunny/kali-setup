@@ -30,7 +30,7 @@ if ! [[ -f ~/.updated ]]; then
     _runningkernel=`uname -r`
     _ondiskkernel=`dpkg --list | grep -v 'meta-package' | tail -1 | grep -oP '\d\.\d{1,2}.\d{1,2}-kali(\d{1,2})-amd64'`
     if ! [[ "$_runningkernel" == "$_ondiskkernel" ]]; then
-        echo "Looks like the running kernel ($runningkernel) doesn't match the on disk kernel ($_ondiskkernel)."
+        echo "Looks like the running kernel ($_runningkernel) doesn't match the on disk kernel ($_ondiskkernel)."
         read -p "Reboot? [yN]"
         if [[ ${REPLY,,} =~ ^y ]]; then
             reboot
