@@ -13,6 +13,8 @@ usage () {
     echo -e "\t-d Don't install any docker containers."
     echo -e "\t-p Don't install PTF."
     echo -e "\t-r Don't install PUPY RAT."
+    echo -e "\t-l Don't setup root to log in automatically."
+    echo -e "\t-g Don't clone from github."
     echo -e "\t-v Verbose"
     echo -e "\t-h This message"
     exit 1
@@ -40,12 +42,14 @@ _aptpackages="open-vm-tools-desktop vim htop veil-* docker.io terminator git lib
 _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit trustedsec/ptf"
 _dockercontainers="alxchk/pupy:unstable empireproject/empire kalilinux/kali-linux-docker"
 
-unset _skipdocker _verbose _skipptf _skippupyrat
-while getopts 'dprv' flag; do
+unset _skipdocker _skipptf _skippupyrat _skipautologin _skipgithub _verbose
+while getopts 'dprlgv' flag; do
     case "${flag}" in
         d) _skipdocker=1 ;;
         p) _skipptf=1 ;;
         r) _skippupyrat=1 ;;
+        l) _skipautologin=1 ;;
+        g) _skipgithub=1 ;;
         v) _verbose=1 ;;
         h) usage ;;
         *) usage ;;
@@ -54,7 +58,7 @@ done
 
 if ! [[ -f ~/.updated ]]; then
     echo "Updating everything!"
-    pgrep packagekitd | xargs kill
+    pgrep packagekitd | xargs kill 2>/dev/null
     sleep 1
     apt-get update && \
     apt-get dist-upgrade -y && \
@@ -72,19 +76,21 @@ if ! [[ -f ~/.updated ]]; then
     fi
 fi
 
-debug "Set up non-ptf git repos"
-pushd /opt
-for _repo in $_githubclone; do
-    _dir=$(echo $_repo | cut -d'/' -f2)
-    if ! [[ -d $_dir ]]; then
-        git clone https://github.com/$_repo.git
-    else
-        pushd $_dir
-        git pull
-        popd
-    fi
-done
-popd
+if ! [[ $_skipgithub ]]; then
+    debug "Set up non-ptf git repos"
+    pushd /opt
+    for _repo in $_githubclone; do
+        _dir=$(echo $_repo | cut -d'/' -f2)
+        if ! [[ -d $_dir ]]; then
+            git clone https://github.com/$_repo.git
+        else
+            pushd $_dir
+            git pull
+            popd
+        fi
+    done
+    popd
+fi
 
 if ! [[ $_skipptf ]]; then
         debug "Set up PTF.  PTF requires --update-all to be run in its working directory."
@@ -114,8 +120,8 @@ if ! [[ $_skipdocker ]]; then
     done
 fi
 
-debug "Set up Pupy correctly"
 if ! [[ $_skippupyrat ]]; then
+    debug "Set up Pupy correctly"
     pushd /opt
     git clone --recursive https://github.com/n1nj4sec/pupy
     pushd pupy
@@ -124,6 +130,12 @@ if ! [[ $_skippupyrat ]]; then
     tar xvf payload_templates.txz && mv payload_templates/* pupy/payload_templates/ && rm payload_templates.txz && rm -r payload_templates
     popd
     popd
+fi
+
+if ! [[ $_skipautologin ]]; then
+    debug "Setting up root to automatically log in."
+    sed -i "s/^#.*AutomaticLoginEnable/AutomaticLoginEnable/g ; s/#.*AutomaticLogin/AutomaticLogin/g" /etc/gdm3/daemon.conf
+fi
 
 debug "Misc Kali commands"
 debug "MSFDB init"
