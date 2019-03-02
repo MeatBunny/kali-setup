@@ -2,11 +2,33 @@
 
 #####################################
 #                                   #
-#   A simple Kali setup script.     #
+#  A simple Kali setup script.      #
 #                                   #
-#   Don't @ me.                     #
+#  Don't @ me.                      #
 #                                   #
 #####################################
+
+usage () {
+    echo -e "\e[94m$0 [-d] [-v] [-h]\e[0m"
+    echo -e "\t-d Don't install any docker containers."
+    echo -e "\t-p Don't install PTF."
+    echo -e "\t-r Don't install PUPY RAT."
+    echo -e "\t-v Verbose"
+    echo -e "\t-h This message"
+    exit 1
+}
+
+debug () {
+    if [[ $_verbose ]]; then
+        echo -e "\e[91mDebug:  $1\e[0m"
+        sleep 1
+    fi
+}
+
+warn () {
+    echo -e "\e[93mWARNING:  $1\e[0m"
+    sleep 1
+}
 
 # Variables and settings
 # Case insensitive matching for regex
@@ -18,9 +40,20 @@ _aptpackages="open-vm-tools-desktop vim htop veil-* docker.io terminator git lib
 _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit trustedsec/ptf"
 _dockercontainers="alxchk/pupy:unstable empireproject/empire kalilinux/kali-linux-docker"
 
-# Update all 
+unset _skipdocker _verbose _skipptf _skippupyrat
+while getopts 'dprv' flag; do
+    case "${flag}" in
+        d) _skipdocker=1 ;;
+        p) _skipptf=1 ;;
+        r) _skippupyrat=1 ;;
+        v) _verbose=1 ;;
+        h) usage ;;
+        *) usage ;;
+    esac
+done
+
 if ! [[ -f ~/.updated ]]; then
-    echo "Updating everything"
+    echo "Updating everything!"
     pgrep packagekitd | xargs kill
     sleep 1
     apt-get update && \
@@ -39,7 +72,7 @@ if ! [[ -f ~/.updated ]]; then
     fi
 fi
 
-# Set up non-ptf git repos
+debug "Set up non-ptf git repos"
 pushd /opt
 for _repo in $_githubclone; do
     _dir=$(echo $_repo | cut -d'/' -f2)
@@ -53,8 +86,9 @@ for _repo in $_githubclone; do
 done
 popd
 
-# Set up PTF.  PTF requires --update-all to be run in its working directory.
-cat << EOF > /opt/ptf/config/ptf.config
+if ! [[ $_skipptf ]]; then
+        debug "Set up PTF.  PTF requires --update-all to be run in its working directory."
+        cat << EOF > /opt/ptf/config/ptf.config
 BASE_INSTALL_PATH="/opt"
 LOG_PATH="src/logs/ptf.log"
 AUTO_UPDATE="ON"
@@ -62,35 +96,39 @@ IGNORE_THESE_MODULES=""
 INCLUDE_ONLY_THESE_MODULES="modules/pivoting/3proxy,modules/webshells/b374k,modules/powershell/babadook,modules/powershell/bloodhound,modules/post-exploitation/empire,modules/powershell/empire,modules/post-exploitation/creddump7,modules/pivoting/meterssh,modules/windows-tools/netripper,modules/pivoting/pivoter,modules/pivoting/rpivot,modules/windows-tools/sidestep,modules/webshells/*"
 IGNORE_UPDATE_ALL_MODULES=""
 EOF
-pushd /opt/ptf
-./ptf --update-all
-popd
+        pushd /opt/ptf
+        ./ptf --update-all
+        popd
+fi
 
-# Set up docker
-mkdir /etc/docker/
-echo -e '{\n\t"iptables": false\n}' > /etc/docker/daemon.json
-systemctl enable docker
-systemctl stop docker
-systemctl daemon-reload
-systemctl start docker
-for _image in $_dockercontainers; do
-    docker pull $_image
-done
+if ! [[ $_skipdocker ]]; then
+    debug "Set up docker"
+    mkdir /etc/docker/
+    echo -e '{\n\t"iptables": false\n}' > /etc/docker/daemon.json
+    systemctl enable docker
+    systemctl stop docker
+    systemctl daemon-reload
+    systemctl start docker
+    for _image in $_dockercontainers; do
+        docker pull $_image
+    done
+fi
 
-# Set up Pupy correctly
-pushd /opt
-git clone --recursive https://github.com/n1nj4sec/pupy
-pushd pupy
-python create-workspace.py -DG pupyw
-wget https://github.com/n1nj4sec/pupy/releases/download/latest/payload_templates.txz
-tar xvf payload_templates.txz && mv payload_templates/* pupy/payload_templates/ && rm payload_templates.txz && rm -r payload_templates
-popd
-popd
+debug "Set up Pupy correctly"
+if ! [[ $_skippupyrat ]]; then
+    pushd /opt
+    git clone --recursive https://github.com/n1nj4sec/pupy
+    pushd pupy
+    python create-workspace.py -DG pupyw
+    wget https://github.com/n1nj4sec/pupy/releases/download/latest/payload_templates.txz
+    tar xvf payload_templates.txz && mv payload_templates/* pupy/payload_templates/ && rm payload_templates.txz && rm -r payload_templates
+    popd
+    popd
 
-# Misc Kali commands
-# MSFDB init
+debug "Misc Kali commands"
+debug "MSFDB init"
 msfdb init
 msfdb start
 
-# Update mlocate
+debug "Update mlocate"
 updatedb
