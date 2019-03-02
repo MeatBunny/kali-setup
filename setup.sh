@@ -11,6 +11,8 @@
 # Variables and settings
 # Case insensitive matching for regex
 shopt -s nocasematch
+# Stop apt from asking stupid questions
+export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
 _aptpackages="open-vm-tools-desktop vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv"
 _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit trustedsec/ptf"
