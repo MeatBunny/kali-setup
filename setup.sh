@@ -25,6 +25,15 @@ if ! [[ -f ~/.updated ]]; then
     apt-get dist-upgrade -y && \
     touch ~/.updated
     apt-get install -y $_aptpackages
+    _runningkernel=`uname -r`
+    _ondiskkernel=`dpkg --list | grep -v 'meta-package' | tail -1 | grep -oP '\d\.\d{1,2}.\d{1,2}-kali(\d{1,2})-amd64'`
+    if ! [[ "$_runningkernel" == "$_ondiskkernel" ]]; then
+        echo "Looks like the running kernel ($runningkernel) doesn't match the on disk kernel ($_ondiskkernel)."
+        read -p "Reboot? [yN]"
+        if [[ ${REPLY,,} =~ ^y ]]; then
+            reboot
+        fi
+    fi
 fi
 
 # Set up non-ptf git repos
@@ -79,8 +88,3 @@ popd
 # MSFDB init
 msfdb init
 msfdb start
-
-read -p "Reboot? [yN]"
-if [[ ${REPLY,,} =~ ^y ]]; then
-    reboot
-fi
