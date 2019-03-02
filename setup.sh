@@ -4,7 +4,7 @@
 #                                           #
 #  A simple Kali setup script.              #
 #                                           #
-#  curl -o setup.sh https://bit.ly/2IO6kKN  #
+#  curl -Lo setup.sh https://bit.ly/2IO6kKN #
 #  bash setup.sh -h                         #
 #                                           #
 #  Don't @ me.                              #
