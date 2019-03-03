@@ -61,6 +61,7 @@ done
 
 if ! [[ -f ~/.updated ]]; then
     echo "Updating everything!"
+    _preupdatekernel=`dpkg --list | grep 'linux-image' | grep -v 'meta-package' | awk '{print $2}' | tail -1`
     pgrep packagekitd | xargs kill 2>/dev/null
     sleep 1
     apt-get update && \
@@ -68,10 +69,9 @@ if ! [[ -f ~/.updated ]]; then
     touch ~/.updated
     apt-get install -y $_aptpackages
     apt-get autoremove -y
-    _runningkernel=`uname -r`
-    _ondiskkernel=`dpkg --list | grep 'linux-image' | grep -oP '\d\.\d{1,2}.\d{1,2}-kali(\d{1,2})-amd64' | tail -1`
-    if ! [[ "$_runningkernel" == "$_ondiskkernel" ]]; then
-        echo "Looks like the running kernel ($_runningkernel) doesn't match the on disk kernel ($_ondiskkernel)."
+    _postupdatekernel=`dpkg --list | grep 'linux-image' | grep -v 'meta-package' | awk '{print $2}' | tail -1`
+    if ! [[ "$_preupdatekernel" == "$_postupdatekernel" ]]; then
+        echo "Looks like the running kernel ($_preupdatekernel) doesn't match the on disk kernel ($_postupdatekernel)."
         read -p "Reboot? [yN]"
         if [[ ${REPLY,,} =~ ^y ]]; then
             reboot
