@@ -12,7 +12,7 @@
 #############################################
 
 usage () {
-    echo -e "\e[94m$0 [-d] [-v] [-h]\e[0m"
+    echo -e "\e[94m$0 [-d] [-p] [-r] [-l] [-g] [-v]\e[0m"
     echo -e "\t-d Don't install any docker containers."
     echo -e "\t-p Don't install PTF."
     echo -e "\t-r Don't install PUPY RAT."
@@ -38,7 +38,7 @@ warn () {
 # Variables and settings
 # Case insensitive matching for regex
 shopt -s nocasematch
-# Stop apt from asking stupid questions
+# (Try to) stop apt from asking stupid questions
 export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
 _aptpackages="open-vm-tools-desktop vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv"
@@ -61,7 +61,6 @@ done
 
 if ! [[ -f ~/.updated ]]; then
     echo "Updating everything!"
-    _preupdatekernel=`dpkg --list | grep 'linux-image' | grep -v 'meta-package' | awk '{print $2}' | tail -1`
     pgrep packagekitd | xargs kill 2>/dev/null
     sleep 1
     apt-get update && \
@@ -69,9 +68,10 @@ if ! [[ -f ~/.updated ]]; then
     touch ~/.updated
     apt-get install -y $_aptpackages
     apt-get autoremove -y
-    _postupdatekernel=`dpkg --list | grep 'linux-image' | grep -v 'meta-package' | awk '{print $2}' | tail -1`
-    if ! [[ "$_preupdatekernel" == "$_postupdatekernel" ]]; then
-        echo "Looks like the running kernel ($_preupdatekernel) doesn't match the on disk kernel ($_postupdatekernel)."
+    _runningkernel=$(uname -r)
+    _ondiskkernel=$(dpkg --list | awk '/linux-image-[0-9]+/ {print $2}' | sort -V | tail -1)
+    if ! [[ $_ondisk =~ $_running ]]; then
+        echo "Looks like the running kernel ($_runningkernel) doesn't match the on disk kernel ($_ondiskkernel)."
         read -p "Reboot? [yN]"
         if [[ ${REPLY,,} =~ ^y ]]; then
             reboot
@@ -110,7 +110,7 @@ INCLUDE_ONLY_THESE_MODULES="modules/pivoting/3proxy,modules/webshells/b374k,modu
 IGNORE_UPDATE_ALL_MODULES=""
 EOF
     pushd /opt/ptf
-    ./ptf --update-all
+    echo -en "use modules/install_update_all\nyes\n" | python ptf
     popd
 fi
 
