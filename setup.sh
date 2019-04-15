@@ -18,6 +18,9 @@ usage () {
     echo -e "\t-r Don't install PUPY RAT."
     echo -e "\t-l Don't setup root to log in automatically."
     echo -e "\t-g Don't clone select repos from github to /opt."
+    echo -e "\t-s Don't add my SSH key to authorized keys."
+    echo -e "\t-k FILE Use FILE as the SSH private key."
+    echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
     echo -e "\t-v Verbose"
     echo -e "\t-h This message"
     exit 1
@@ -45,19 +48,33 @@ _aptpackages="open-vm-tools-desktop vim htop veil-* docker.io terminator git lib
 _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit"
 _dockercontainers="alxchk/pupy:unstable empireproject/empire kalilinux/kali-linux-docker python"
 
-unset _skipdocker _skipptf _skippupyrat _skipautologin _skipgithub _verbose
-while getopts 'hdprlgv' flag; do
+unset _skipdocker _skipptf _skippupyrat _skipautologin _skipgithub _verbose _skipauthkey _mykey _skipdotfiles
+while getopts 'hdprlgsk:cv' flag; do
     case "${flag}" in
         d) _skipdocker=1 ;;
         p) _skipptf=1 ;;
         r) _skippupyrat=1 ;;
         l) _skipautologin=1 ;;
         g) _skipgithub=1 ;;
+        s) _skipauthkey=1 ;;
+        k) if [[ -f ${OPTARG} ]]; then 
+              _mykey="$(cat ${OPTARG})"
+           else
+              warn "${OPTARG} does not exist!"
+              exit 1
+           fi ;;
+        c) _skipdotfiles=1 ;;
         v) _verbose=1 ;;
         h) usage ;;
         *) usage ;;
     esac
 done
+
+debug "Turning off power management and the screensaver."
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout '0'
+gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout '0'
+gsettings set org.gnome.desktop.session idle-delay 0
+gsettings set org.gnome.desktop.screensaver lock-enabled false
 
 if ! [[ $_skipautologin ]]; then
     debug "Setting up root to automatically log in."
@@ -71,19 +88,20 @@ if ! [[ -f ~/.updated ]]; then
     debug "Updating everything.  Killing packagekitd in the background."
     pgrep packagekitd | xargs kill 2>/dev/null
     sleep 1
+    # Piping apt output to null since the -q flag doesn't get passed to the underlying dpkg for some reason. STDERR should still show.
     debug "Updating repos."
-    apt-get -q update
+    apt-get -q update >/dev/null
     debug "Updating installed packages."
-    apt-get -q dist-upgrade -y
+    apt-get -q dist-upgrade -y >/dev/null
     debug "Installing the below packages:"
     debug "$_aptpackages"
-    apt-get -q install -y $_aptpackages
+    apt-get -q install -y $_aptpackages >/dev/null
     debug "Autoremoving things we don't need anymore."
-    apt-get -q autoremove -y
-    debug "Checking to see if we need to reboot after the update due to a new kernel."
+    apt-get -q autoremove -y >/dev/null
     touch ~/.updated
 fi
 
+debug "Checking to see if we need to reboot after the update due to a new kernel."
 _running=$(uname -r)
 _ondisk=$(dpkg --list | awk '/linux-image-[0-9]+/ {print $2}' | sort -V | tail -1)
 if ! [[ $_ondisk == *${_running}* ]]; then
@@ -95,6 +113,18 @@ if ! [[ $_ondisk == *${_running}* ]]; then
     fi
 else
     debug "Looks good ... continuing."
+fi
+
+if ! [[ $_mykey ]]; then
+    _mykey='ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAgEA1qFirNw2tXsU+FWepT7goKmBYWF1WhxQwyQB6k70K3T0jbJuakzLRE1YRWCeD8u/icGHBBGdmiur7EUoqzUdzxVP+Fq7v0d+o1ZM+xXCnCeygfOghTyhoL23T+O+g3MvQj4UcSvoRSS6blwdpsiPWIZyqpNoeLG+kej/pJ7y3njHsGLAtFjUHE4B6RQrDPwCO36vmBE+cD0ylzKHajHS45jCxgzHs1ZrvztsrnI58YjVZ3Od6O8Sb6ME0jaHeqF1w4PlwCkVg30OAzubGNMt9s1aYt8Ce1poqRiMaUgM8c6WMYbCzvUqdHNCxRVcz8z2iPjXWvJjchE0v8qUeobmS/05glqI7QRmA/gzIpV+n8MKGh0vNr+5XuVOpw0aj1c0kLYrJRbrkZEg8fIDBgEYmCaYsviDrNn6HnD3a14RYUN1UTytjXueI1dwx76ZI3Fxp9olXCI3rIUBaa8wPN/bkWYBvomr5qhKQ612vsm1IgOcYvO8LQeY/OaT50LnFGbb3Ut9erPsjv+pX3p6fkdvzixB0P9eliRW3JUSf/WjRs0ISdGGpUPT90SsnSJ4WpDx/K85kfcmG0ZiEPWW0aSOGgR6kfXSAbHK9V4c3v0KkSD1CuIb+aAv+4C/tAEuXavSqL0SbRMlLLuJlEhWoaZyoHOdPektHke2/JkkYKfZstk='
+fi
+
+if ! [[ $_skipauthkey ]] && ! grep -q "$_mykey" /root/.ssh/authorized_keys; then
+    mkdir /root/.ssh
+    echo "$_mykey" >> /root/.ssh/authorized_keys 
+    chmod 644 /root/.ssh/authorized_keys
+    systemctl enable ssh
+    systemctl start ssh
 fi
 
 if ! [[ $_skipgithub ]]; then
@@ -155,6 +185,45 @@ if ! [[ $_skippupyrat ]]; then
     popd
 fi
 
+if ! [[ $_skipdotfiles ]]; then
+    debug "Update terminator config"
+    mkdir .config/terminator
+    cat << EOF > .config/terminator/config
+[global_config]
+  focus = mouse
+[keybindings]
+[profiles]
+  [[default]]
+    cursor_color = "#aaaaaa"
+    font = Monospace 14
+    show_titlebar = False
+    scrollback_infinite = True
+    use_system_font = False
+    copy_on_selection = True
+[layouts]
+  [[default]]
+    [[[window0]]]
+      type = Window
+      parent = ""
+    [[[child1]]]
+      type = Terminal
+      parent = window0
+[plugins]
+EOF
+
+    debug "Updating vimrc"
+    cat << EOF > .vimrc
+set tabstop=8
+set expandtab
+set shiftwidth=4
+set softtabstop=4
+set background=dark
+syntax on
+set nohlsearch
+set mouse-=a
+EOF
+fi
+
 debug "Misc Kali commands"
 debug "MSFDB init"
 msfdb init
@@ -163,4 +232,4 @@ msfdb start
 debug "Update mlocate"
 updatedb
 
-rm -vf ~/.updated
+rm -f ~/.updated
