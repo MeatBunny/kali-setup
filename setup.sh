@@ -70,21 +70,26 @@ while getopts 'hdprlgsk:cv' flag; do
     esac
 done
 
-debug "Turning off power management and the screensaver."
-gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout '0'
-gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout '0'
-gsettings set org.gnome.desktop.session idle-delay 0
-gsettings set org.gnome.desktop.screensaver lock-enabled false
+if ! [[ -f ~/.firstrun ]]; then
 
-if ! [[ $_skipautologin ]]; then
-    debug "Setting up root to automatically log in."
-    sed -i "s/^#.*AutomaticLoginEnable/AutomaticLoginEnable/g ; s/#.*AutomaticLogin/AutomaticLogin/g" /etc/gdm3/daemon.conf
-fi
+    debug "Turning off power management, animations, and the screensaver."
+    gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
+    gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout '0'
+    gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'
+    gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout '0'
+    gsettings set org.gnome.desktop.session idle-delay 0
+    gsettings set org.gnome.desktop.screensaver lock-enabled false
+    gsettings set org.gmome.desktop.interface enable-animations false
 
-if ! [[ -f ~/.updated ]]; then
+    if ! [[ $_skipautologin ]]; then
+        debug "Setting up root to automatically log in."
+        sed -i "s/^#.*AutomaticLoginEnable/AutomaticLoginEnable/g ; s/#.*AutomaticLogin/AutomaticLogin/g" /etc/gdm3/daemon.conf
+    fi
+
     debug "Removing built in SSH keys"
     rm -vf /etc/ssh/ssh_host_*
     dpkg-reconfigure openssh-server
+
     debug "Updating everything.  Killing packagekitd in the background."
     pgrep packagekitd | xargs kill 2>/dev/null
     sleep 1
@@ -98,21 +103,23 @@ if ! [[ -f ~/.updated ]]; then
     apt-get -q install -y $_aptpackages >/dev/null
     debug "Autoremoving things we don't need anymore."
     apt-get -q autoremove -y >/dev/null
-    touch ~/.updated
+    touch ~/.firstrun
 fi
 
 debug "Checking to see if we need to reboot after the update due to a new kernel."
 _running=$(uname -r)
 _ondisk=$(dpkg --list | awk '/linux-image-[0-9]+/ {print $2}' | sort -V | tail -1)
-if ! [[ $_ondisk == *${_running}* ]]; then
+if [[ $_ondisk == *${_running}* ]]; then
+    debug "Looks good ... continuing."
+else
     warn "Looks like the running kernel ($_running) doesn't match the on disk kernel ($_ondisk) after the update."
     echo "You're probably going to want to reboot and run this script again to avoid errors with PTF."
-    read -p "Reboot? [yN]"
-    if [[ ${REPLY,,} =~ ^y ]]; then
+    read -p "Reboot? [Y/n]"
+    if [[ ${REPLY,,} =~ ^n ]]; then
+        warn "Ok, if you say so ..."
+    else
         reboot
     fi
-else
-    debug "Looks good ... continuing."
 fi
 
 if ! [[ $_mykey ]]; then
@@ -232,4 +239,4 @@ msfdb start
 debug "Update mlocate"
 updatedb
 
-rm -f ~/.updated
+rm -f ~/.firstrun
