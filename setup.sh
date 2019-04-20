@@ -92,7 +92,11 @@ if ! [[ -f ~/.firstrun ]]; then
 
     debug "Updating everything.  Stopping packagekitd in the background."
     systemctl stop packagekit
-    sleep 5
+    systemctl disable packagekit
+    sleep 1
+    # Sometimes a child processs from the auto update keeps running.
+    fuser -s -k /var/lib/apt/lists/lock
+    sleep 1
     # Piping apt output to null since the -q flag doesn't get passed to the underlying dpkg for some reason. STDERR should still show.
     debug "Updating repos."
     apt-get -q update >/dev/null
