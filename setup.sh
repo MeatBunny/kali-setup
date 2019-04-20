@@ -79,7 +79,7 @@ if ! [[ -f ~/.firstrun ]]; then
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout '0'
     gsettings set org.gnome.desktop.session idle-delay 0
     gsettings set org.gnome.desktop.screensaver lock-enabled false
-    gsettings set org.gmome.desktop.interface enable-animations false
+    gsettings set org.gnome.desktop.interface enable-animations false
 
     if ! [[ $_skipautologin ]]; then
         debug "Setting up root to automatically log in."
@@ -90,9 +90,9 @@ if ! [[ -f ~/.firstrun ]]; then
     rm -vf /etc/ssh/ssh_host_*
     dpkg-reconfigure openssh-server
 
-    debug "Updating everything.  Killing packagekitd in the background."
-    pgrep packagekitd | xargs kill 2>/dev/null
-    sleep 1
+    debug "Updating everything.  Stopping packagekitd in the background."
+    systemctl stop packagekit
+    sleep 5
     # Piping apt output to null since the -q flag doesn't get passed to the underlying dpkg for some reason. STDERR should still show.
     debug "Updating repos."
     apt-get -q update >/dev/null
