@@ -1,13 +1,13 @@
 #!/bin/bash
 
-##############################################
+#############################################
 #                                           #
-#  A simple Kali setup script.              #
+#  My excessive Kali setup script.          #
 #                                           #
 #  curl -Lo setup.sh https://bit.ly/2IO6kKN #
-#  bash setup.sh -h                         #
 #                                           #
-#  Don't @ me.                              #
+#  Don't @ me. Change the SSH key if        #
+#  you want to use this.                    #
 #                                           #
 #############################################
 
@@ -20,14 +20,15 @@ usage () {
     echo -e "\t-g Don't clone select repos from github to /opt."
     echo -e "\t-s Don't add my SSH key to authorized keys."
     echo -e "\t-k FILE Use FILE as the SSH private key."
+    echo -e "\t-u Don't create a unprivilieged browser user."
     echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
-    echo -e "\t-v Verbose"
+    echo -e "\t-q Don't show debug messages"
     echo -e "\t-h This message"
     exit 1
 }
 
 debug () {
-    if [[ $_verbose ]]; then
+    if [[ $_verbose -eq 1 ]]; then
         echo -e "\e[92mDebug:  $1\e[0m"
         sleep 1
     fi
@@ -35,6 +36,10 @@ debug () {
 
 warn () {
     echo -e "\e[93mWARNING:  $1\e[0m"
+    # Sometimes commands are going to fail and not be fatal, so instead of set -e do this on important things.
+    if [[ $2 =~ exitnow ]]; then
+        exit 1
+    fi
     sleep 1
 }
 
@@ -47,8 +52,9 @@ export DEBIAN_FRONTEND=noninteractive
 _aptpackages="open-vm-tools-desktop vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv"
 _githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit"
 _dockercontainers="alxchk/pupy:unstable empireproject/empire kalilinux/kali-linux-docker python"
-
-unset _skipdocker _skipptf _skippupyrat _skipautologin _skipgithub _verbose _skipauthkey _mykey _skipdotfiles
+_verbose=1
+_mykey='ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAgEA1qFirNw2tXsU+FWepT7goKmBYWF1WhxQwyQB6k70K3T0jbJuakzLRE1YRWCeD8u/icGHBBGdmiur7EUoqzUdzxVP+Fq7v0d+o1ZM+xXCnCeygfOghTyhoL23T+O+g3MvQj4UcSvoRSS6blwdpsiPWIZyqpNoeLG+kej/pJ7y3njHsGLAtFjUHE4B6RQrDPwCO36vmBE+cD0ylzKHajHS45jCxgzHs1ZrvztsrnI58YjVZ3Od6O8Sb6ME0jaHeqF1w4PlwCkVg30OAzubGNMt9s1aYt8Ce1poqRiMaUgM8c6WMYbCzvUqdHNCxRVcz8z2iPjXWvJjchE0v8qUeobmS/05glqI7QRmA/gzIpV+n8MKGh0vNr+5XuVOpw0aj1c0kLYrJRbrkZEg8fIDBgEYmCaYsviDrNn6HnD3a14RYUN1UTytjXueI1dwx76ZI3Fxp9olXCI3rIUBaa8wPN/bkWYBvomr5qhKQ612vsm1IgOcYvO8LQeY/OaT50LnFGbb3Ut9erPsjv+pX3p6fkdvzixB0P9eliRW3JUSf/WjRs0ISdGGpUPT90SsnSJ4WpDx/K85kfcmG0ZiEPWW0aSOGgR6kfXSAbHK9V4c3v0KkSD1CuIb+aAv+4C/tAEuXavSqL0SbRMlLLuJlEhWoaZyoHOdPektHke2/JkkYKfZstk='
+unset _skipdocker _skipptf _skippupyrat _skipautologin _skipgithub _skipauthkey _mykey _skipdotfiles _skipunpriv
 while getopts 'hdprlgsk:cv' flag; do
     case "${flag}" in
         d) _skipdocker=1 ;;
@@ -64,7 +70,8 @@ while getopts 'hdprlgsk:cv' flag; do
               exit 1
            fi ;;
         c) _skipdotfiles=1 ;;
-        v) _verbose=1 ;;
+        q) _verbose=0 ;;
+        u) _skipunpriv=1 ;;
         h) usage ;;
         *) usage ;;
     esac
@@ -77,7 +84,7 @@ if ! [[ -f ~/.firstrun ]]; then
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout '0'
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout '0'
-    gsettings set org.gnome.desktop.session idle-delay 0
+    gsettings set org.gnome.desktop.session idle-delay '0'
     gsettings set org.gnome.desktop.screensaver lock-enabled false
     gsettings set org.gnome.desktop.interface enable-animations false
 
@@ -87,8 +94,8 @@ if ! [[ -f ~/.firstrun ]]; then
     fi
 
     debug "Removing built in SSH keys"
-    rm -vf /etc/ssh/ssh_host_*
-    dpkg-reconfigure openssh-server
+    rm -f /etc/ssh/ssh_host_*
+    dpkg-reconfigure openssh-server > /dev/null
 
     debug "Updating everything.  Stopping packagekitd in the background."
     systemctl stop packagekit
@@ -99,14 +106,15 @@ if ! [[ -f ~/.firstrun ]]; then
     sleep 1
     # Piping apt output to null since the -q flag doesn't get passed to the underlying dpkg for some reason. STDERR should still show.
     debug "Updating repos."
-    apt-get -q update >/dev/null
-    debug "Updating installed packages."
-    apt-get -q dist-upgrade -y >/dev/null
+    apt-get -o -yq update >/dev/null || warn "Error in apt-get update" exitnow
+    debug "Updating installed packages.  This will take a while."
+    apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq dist-upgrade >/dev/null || warn "Error in updating installed packages." exitnow
     debug "Installing the below packages:"
     debug "$_aptpackages"
-    apt-get -q install -y $_aptpackages >/dev/null
+    debug "This will take a while."
+    apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install $_aptpackages >/dev/null || warn "Error when trying to install new packages" exitnow
     debug "Autoremoving things we don't need anymore."
-    apt-get -q autoremove -y >/dev/null
+    apt-get -yq autoremove >/dev/null || warn "Error in autoremove." exitnow
     touch ~/.firstrun
 fi
 
@@ -126,16 +134,30 @@ else
     fi
 fi
 
-if ! [[ $_mykey ]]; then
-    _mykey='ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAgEA1qFirNw2tXsU+FWepT7goKmBYWF1WhxQwyQB6k70K3T0jbJuakzLRE1YRWCeD8u/icGHBBGdmiur7EUoqzUdzxVP+Fq7v0d+o1ZM+xXCnCeygfOghTyhoL23T+O+g3MvQj4UcSvoRSS6blwdpsiPWIZyqpNoeLG+kej/pJ7y3njHsGLAtFjUHE4B6RQrDPwCO36vmBE+cD0ylzKHajHS45jCxgzHs1ZrvztsrnI58YjVZ3Od6O8Sb6ME0jaHeqF1w4PlwCkVg30OAzubGNMt9s1aYt8Ce1poqRiMaUgM8c6WMYbCzvUqdHNCxRVcz8z2iPjXWvJjchE0v8qUeobmS/05glqI7QRmA/gzIpV+n8MKGh0vNr+5XuVOpw0aj1c0kLYrJRbrkZEg8fIDBgEYmCaYsviDrNn6HnD3a14RYUN1UTytjXueI1dwx76ZI3Fxp9olXCI3rIUBaa8wPN/bkWYBvomr5qhKQ612vsm1IgOcYvO8LQeY/OaT50LnFGbb3Ut9erPsjv+pX3p6fkdvzixB0P9eliRW3JUSf/WjRs0ISdGGpUPT90SsnSJ4WpDx/K85kfcmG0ZiEPWW0aSOGgR6kfXSAbHK9V4c3v0KkSD1CuIb+aAv+4C/tAEuXavSqL0SbRMlLLuJlEhWoaZyoHOdPektHke2/JkkYKfZstk='
-fi
-
 if ! [[ $_skipauthkey ]] && ! grep -q "$_mykey" /root/.ssh/authorized_keys; then
     mkdir /root/.ssh
+    chmod 700 /root/.ssh
     echo "$_mykey" >> /root/.ssh/authorized_keys 
-    chmod 644 /root/.ssh/authorized_keys
+    chmod 600 /root/.ssh/authorized_keys
+    sed -i 's,^#PermitRootLogin.*,PermitRootLogin prohibit-password,g' /etc/ssh/sshd_config
     systemctl enable ssh
     systemctl start ssh
+fi
+
+if ! [[ $_skipunpriv ]]; then
+    debug "Adding a unprivileged user to do stuff like web browsing over X11 forwarding."
+    _unprivpass=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w30 | head -n1)
+    useradd -c "Unpriviliged user" -m user
+    echo $_unprivpass | passwd --stdin user
+    echo -e "username: user\npassword: $_unprivpass" > /root/unprivcreds.txt
+    chmod 600 /root/unprivcreds.txt
+    if [[ -f /root/.ssh/authorized_keys ]]; then
+        mkdir /home/user/.ssh
+        chmod 700 /home/user/.ssh
+        cp /root/.ssh/authorized_keys /home/user/.ssh/authorized_keys
+        chmod 600 /home/user/.ssh/authorized_keys
+        chown user:user /home/user/.ssh /home/user/.ssh/authorized_keys
+    fi
 fi
 
 if ! [[ $_skipgithub ]]; then
