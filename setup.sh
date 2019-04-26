@@ -28,7 +28,7 @@ usage () {
 }
 
 debug () {
-    if [[ $_verbose -eq 1 ]]; then
+    if [[ $verbose -eq 1 ]]; then
         echo -e "\e[92mDebug:  $1\e[0m"
         sleep 1
     fi
@@ -49,36 +49,37 @@ shopt -s nocasematch
 # (Try to) stop apt from asking stupid questions
 export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
-_aptpackages="open-vm-tools-desktop vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv"
-_githubclone="chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit"
-_dockercontainers="alxchk/pupy:unstable empireproject/empire kalilinux/kali-linux-docker python"
-_verbose=1
-_mykey='ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAgEA1qFirNw2tXsU+FWepT7goKmBYWF1WhxQwyQB6k70K3T0jbJuakzLRE1YRWCeD8u/icGHBBGdmiur7EUoqzUdzxVP+Fq7v0d+o1ZM+xXCnCeygfOghTyhoL23T+O+g3MvQj4UcSvoRSS6blwdpsiPWIZyqpNoeLG+kej/pJ7y3njHsGLAtFjUHE4B6RQrDPwCO36vmBE+cD0ylzKHajHS45jCxgzHs1ZrvztsrnI58YjVZ3Od6O8Sb6ME0jaHeqF1w4PlwCkVg30OAzubGNMt9s1aYt8Ce1poqRiMaUgM8c6WMYbCzvUqdHNCxRVcz8z2iPjXWvJjchE0v8qUeobmS/05glqI7QRmA/gzIpV+n8MKGh0vNr+5XuVOpw0aj1c0kLYrJRbrkZEg8fIDBgEYmCaYsviDrNn6HnD3a14RYUN1UTytjXueI1dwx76ZI3Fxp9olXCI3rIUBaa8wPN/bkWYBvomr5qhKQ612vsm1IgOcYvO8LQeY/OaT50LnFGbb3Ut9erPsjv+pX3p6fkdvzixB0P9eliRW3JUSf/WjRs0ISdGGpUPT90SsnSJ4WpDx/K85kfcmG0ZiEPWW0aSOGgR6kfXSAbHK9V4c3v0KkSD1CuIb+aAv+4C/tAEuXavSqL0SbRMlLLuJlEhWoaZyoHOdPektHke2/JkkYKfZstk='
-unset _skipdocker _skipptf _skippupyrat _skipautologin _skipgithub _skipauthkey _mykey _skipdotfiles _skipunpriv
+aptpackages=(open-vm-tools-desktop vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv sshpass)
+githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit)
+dockercontainers=(alxchk/pupy:unstable empireproject/empire kalilinux/kali-linux-docker python nginx)
+verbose=1
+sshkeys=('ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAgEA1qFirNw2tXsU+FWepT7goKmBYWF1WhxQwyQB6k70K3T0jbJuakzLRE1YRWCeD8u/icGHBBGdmiur7EUoqzUdzxVP+Fq7v0d+o1ZM+xXCnCeygfOghTyhoL23T+O+g3MvQj4UcSvoRSS6blwdpsiPWIZyqpNoeLG+kej/pJ7y3njHsGLAtFjUHE4B6RQrDPwCO36vmBE+cD0ylzKHajHS45jCxgzHs1ZrvztsrnI58YjVZ3Od6O8Sb6ME0jaHeqF1w4PlwCkVg30OAzubGNMt9s1aYt8Ce1poqRiMaUgM8c6WMYbCzvUqdHNCxRVcz8z2iPjXWvJjchE0v8qUeobmS/05glqI7QRmA/gzIpV+n8MKGh0vNr+5XuVOpw0aj1c0kLYrJRbrkZEg8fIDBgEYmCaYsviDrNn6HnD3a14RYUN1UTytjXueI1dwx76ZI3Fxp9olXCI3rIUBaa8wPN/bkWYBvomr5qhKQ612vsm1IgOcYvO8LQeY/OaT50LnFGbb3Ut9erPsjv+pX3p6fkdvzixB0P9eliRW3JUSf/WjRs0ISdGGpUPT90SsnSJ4WpDx/K85kfcmG0ZiEPWW0aSOGgR6kfXSAbHK9V4c3v0KkSD1CuIb+aAv+4C/tAEuXavSqL0SbRMlLLuJlEhWoaZyoHOdPektHke2/JkkYKfZstk=')
+unset skipdocker skipptf skippupyrat skipautologin skipgithub skipauthkey skipdotfiles skipunpriv
 while getopts 'hdprlgsk:cv' flag; do
     case "${flag}" in
-        d) _skipdocker=1 ;;
-        p) _skipptf=1 ;;
-        r) _skippupyrat=1 ;;
-        l) _skipautologin=1 ;;
-        g) _skipgithub=1 ;;
-        s) _skipauthkey=1 ;;
+        d) skipdocker=1 ;;
+        p) skipptf=1 ;;
+        r) skippupyrat=1 ;;
+        l) skipautologin=1 ;;
+        g) skipgithub=1 ;;
+        s) skipauthkey=1 ;;
         k) if [[ -f ${OPTARG} ]]; then 
-              _mykey="$(cat ${OPTARG})"
+              readarray sshkeys < ${OPTARG}
            else
               warn "${OPTARG} does not exist!"
               exit 1
            fi ;;
-        c) _skipdotfiles=1 ;;
-        q) _verbose=0 ;;
-        u) _skipunpriv=1 ;;
+        c) skipdotfiles=1 ;;
+        q) verbose=0 ;;
+        u) skipunpriv=1 ;;
         h) usage ;;
         *) usage ;;
     esac
 done
 
-if ! [[ -f ~/.firstrun ]]; then
-
+if [[ -f ~/.firstrun ]]; then
+    debug "Looks like we rebooted after a kernel update... not running initial updates."
+else
     debug "Turning off power management, animations, and the screensaver."
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout '0'
@@ -88,7 +89,7 @@ if ! [[ -f ~/.firstrun ]]; then
     gsettings set org.gnome.desktop.screensaver lock-enabled false
     gsettings set org.gnome.desktop.interface enable-animations false
 
-    if ! [[ $_skipautologin ]]; then
+    if ! [[ $skipautologin ]]; then
         debug "Setting up root to automatically log in."
         sed -i "s/^#.*AutomaticLoginEnable/AutomaticLoginEnable/g ; s/#.*AutomaticLogin/AutomaticLogin/g" /etc/gdm3/daemon.conf
     fi
@@ -110,21 +111,21 @@ if ! [[ -f ~/.firstrun ]]; then
     debug "Updating installed packages.  This will take a while."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq dist-upgrade >/dev/null || warn "Error in updating installed packages." exitnow
     debug "Installing the below packages:"
-    debug "$_aptpackages"
+    debug "${aptpackages[@]}"
     debug "This will take a while."
-    apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install $_aptpackages >/dev/null || warn "Error when trying to install new packages" exitnow
+    apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install ${aptpackages[@]} >/dev/null || warn "Error when trying to install new packages" exitnow
     debug "Autoremoving things we don't need anymore."
     apt-get -yq autoremove >/dev/null || warn "Error in autoremove." exitnow
     touch ~/.firstrun
 fi
 
 debug "Checking to see if we need to reboot after the update due to a new kernel."
-_running=$(uname -r)
-_ondisk=$(dpkg --list | awk '/linux-image-[0-9]+/ {print $2}' | sort -V | tail -1)
-if [[ $_ondisk == *${_running}* ]]; then
+running=$(uname -r)
+ondisk=$(dpkg --list | awk '/linux-image-[0-9]+/ {print $2}' | sort -V | tail -1)
+if [[ $ondisk == *${running}* ]]; then
     debug "Looks good ... continuing."
 else
-    warn "Looks like the running kernel ($_running) doesn't match the on disk kernel ($_ondisk) after the update."
+    warn "Looks like the running kernel ($running) doesn't match the on disk kernel ($ondisk) after the update."
     echo "You're probably going to want to reboot and run this script again to avoid errors with PTF."
     read -p "Reboot? [Y/n]"
     if [[ ${REPLY,,} =~ ^n ]]; then
@@ -134,22 +135,29 @@ else
     fi
 fi
 
-if ! [[ $_skipauthkey ]] && ! grep -q "$_mykey" /root/.ssh/authorized_keys; then
+if [[ $skipauthkey ]]; then
+    debug "Skipping adding authorized keys"
+else
     mkdir /root/.ssh
     chmod 700 /root/.ssh
-    echo "$_mykey" >> /root/.ssh/authorized_keys 
+    cat /dev/null > /root/.ssh/authorized_keys
+    for i in "${sshkeys[@]}"; do 
+        echo $i >> /root/.ssh/authorized_keys
+    done
     chmod 600 /root/.ssh/authorized_keys
     sed -i 's,^#PermitRootLogin.*,PermitRootLogin prohibit-password,g' /etc/ssh/sshd_config
     systemctl enable ssh
     systemctl start ssh
 fi
 
-if ! [[ $_skipunpriv ]]; then
-    debug "Adding a unprivileged user to do stuff like web browsing over X11 forwarding."
-    _unprivpass=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w30 | head -n1)
-    useradd -c "Unpriviliged user" -m user
-    echo $_unprivpass | passwd --stdin user
-    echo -e "username: user\npassword: $_unprivpass" > /root/unprivcreds.txt
+if [[ $skipunpriv ]]; then
+    debug "Skipping adding an unprivileged user"
+else
+    debug "Adding an unprivileged user to do stuff like web browsing over X11 forwarding."
+    unprivpass=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w30 | head -n1)
+    useradd -c "Unpriviliged user" -m -s /bin/bash user
+    echo "user:$unprivpass" | chpasswd
+    echo -e "username: user\npassword: $unprivpass\n\nsshpass -p $unprivpass ssh -X user@127.0.0.1" > /root/unprivcreds.txt
     chmod 600 /root/unprivcreds.txt
     if [[ -f /root/.ssh/authorized_keys ]]; then
         mkdir /home/user/.ssh
@@ -160,23 +168,27 @@ if ! [[ $_skipunpriv ]]; then
     fi
 fi
 
-if ! [[ $_skipgithub ]]; then
+if [[ $skipgithub ]]; then
+    debug "Not pulling select repos from github."
+else
     debug "Set up non-ptf git repos"
     pushd /opt
-    for _repo in $_githubclone; do
-        _dir=$(echo $_repo | cut -d'/' -f2)
-        if ! [[ -d $_dir ]]; then
-            git clone https://github.com/$_repo.git
-        else
-            pushd $_dir
+    for repo in "${githubclone[@]}"; do
+        dir=$(echo $repo | cut -d'/' -f2)
+        if [[ -d $dir ]]; then
+            pushd $dir
             git pull
             popd
+        else
+            git clone https://github.com/$repo.git
         fi
     done
     popd
 fi
 
-if ! [[ $_skipptf ]]; then
+if [[ $skipptf ]]; then
+    debug "Skipping PTF install."
+else
     debug "Grabbing PTF from github."
     git clone  https://github.com/trustedsec/ptf /opt/ptf
     cat << EOF > /opt/ptf/config/ptf.config
@@ -193,7 +205,9 @@ EOF
     popd
 fi
 
-if ! [[ $_skipdocker ]]; then
+if [[ $skipdocker ]]; then
+    debug "Skipping docker"
+else
     debug "Set up docker"
     mkdir /etc/docker/
     echo -e '{\n\t"iptables": false\n}' > /etc/docker/daemon.json
@@ -201,12 +215,14 @@ if ! [[ $_skipdocker ]]; then
     systemctl stop docker
     systemctl daemon-reload
     systemctl start docker
-    for _image in $_dockercontainers; do
-        docker pull $_image
+    for image in ${dockercontainers[@]}; do
+        docker pull $image
     done
 fi
 
-if ! [[ $_skippupyrat ]]; then
+if [[ $skippupyrat ]]; then
+    debug "Not setting up pupy."
+else
     debug "Set up Pupy correctly"
     pushd /opt
     git clone --recursive https://github.com/n1nj4sec/pupy
@@ -218,7 +234,9 @@ if ! [[ $_skippupyrat ]]; then
     popd
 fi
 
-if ! [[ $_skipdotfiles ]]; then
+if [[ $skipdotfiles ]]; then
+    debug "Skipping setting up dotfiles."
+else
     debug "Update terminator config"
     mkdir .config/terminator
     cat << EOF > .config/terminator/config
