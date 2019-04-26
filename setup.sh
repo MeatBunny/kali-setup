@@ -106,7 +106,7 @@ if ! [[ -f ~/.firstrun ]]; then
     sleep 1
     # Piping apt output to null since the -q flag doesn't get passed to the underlying dpkg for some reason. STDERR should still show.
     debug "Updating repos."
-    apt-get -o -yq update >/dev/null || warn "Error in apt-get update" exitnow
+    apt-get -yq update >/dev/null || warn "Error in apt-get update" exitnow
     debug "Updating installed packages.  This will take a while."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq dist-upgrade >/dev/null || warn "Error in updating installed packages." exitnow
     debug "Installing the below packages:"
