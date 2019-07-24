@@ -18,8 +18,7 @@ usage () {
     echo -e "\t-r Don't install PUPY RAT."
     echo -e "\t-l Don't setup root to log in automatically."
     echo -e "\t-g Don't clone select repos from github to /opt."
-    echo -e "\t-s Don't add my SSH key to authorized keys."
-    echo -e "\t-k FILE Use FILE as the SSH private key."
+    echo -e "\t-s USER Install SSH Keys for USER from github https"
     echo -e "\t-u Don't create a unprivilieged browser user."
     echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
     echo -e "\t-q Don't show debug messages"
@@ -53,22 +52,15 @@ aptpackages=(open-vm-tools-desktop vim htop veil-* docker.io terminator git libs
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit)
 dockercontainers=(alxchk/pupy:unstable empireproject/empire kalilinux/kali-linux-docker python nginx)
 verbose=1
-sshkeys=('ssh-rsa AAAAB3NzaC1yc2EAAAABJQAAAgEA1qFirNw2tXsU+FWepT7goKmBYWF1WhxQwyQB6k70K3T0jbJuakzLRE1YRWCeD8u/icGHBBGdmiur7EUoqzUdzxVP+Fq7v0d+o1ZM+xXCnCeygfOghTyhoL23T+O+g3MvQj4UcSvoRSS6blwdpsiPWIZyqpNoeLG+kej/pJ7y3njHsGLAtFjUHE4B6RQrDPwCO36vmBE+cD0ylzKHajHS45jCxgzHs1ZrvztsrnI58YjVZ3Od6O8Sb6ME0jaHeqF1w4PlwCkVg30OAzubGNMt9s1aYt8Ce1poqRiMaUgM8c6WMYbCzvUqdHNCxRVcz8z2iPjXWvJjchE0v8qUeobmS/05glqI7QRmA/gzIpV+n8MKGh0vNr+5XuVOpw0aj1c0kLYrJRbrkZEg8fIDBgEYmCaYsviDrNn6HnD3a14RYUN1UTytjXueI1dwx76ZI3Fxp9olXCI3rIUBaa8wPN/bkWYBvomr5qhKQ612vsm1IgOcYvO8LQeY/OaT50LnFGbb3Ut9erPsjv+pX3p6fkdvzixB0P9eliRW3JUSf/WjRs0ISdGGpUPT90SsnSJ4WpDx/K85kfcmG0ZiEPWW0aSOGgR6kfXSAbHK9V4c3v0KkSD1CuIb+aAv+4C/tAEuXavSqL0SbRMlLLuJlEhWoaZyoHOdPektHke2/JkkYKfZstk=')
-unset skipdocker skipptf skippupyrat skipautologin skipgithub skipauthkey skipdotfiles skipunpriv
-while getopts 'hdprlgsk:cv' flag; do
+unset skipdocker skipptf skippupyrat skipautologin skipgithub sshuser skipdotfiles skipunpriv
+while getopts 'hdprlgs:cv' flag; do
     case "${flag}" in
         d) skipdocker=1 ;;
         p) skipptf=1 ;;
         r) skippupyrat=1 ;;
         l) skipautologin=1 ;;
         g) skipgithub=1 ;;
-        s) skipauthkey=1 ;;
-        k) if [[ -f ${OPTARG} ]]; then 
-              readarray sshkeys < ${OPTARG}
-           else
-              warn "${OPTARG} does not exist!"
-              exit 1
-           fi ;;
+        s) sshuser=${OPTARG} ;;
         c) skipdotfiles=1 ;;
         q) verbose=0 ;;
         u) skipunpriv=1 ;;
@@ -135,15 +127,11 @@ else
     fi
 fi
 
-if [[ $skipauthkey ]]; then
-    debug "Skipping adding authorized keys"
-else
+if [[ $sshuser ]]; then
+    debug "Adding $sshuser 's github keys."
     mkdir /root/.ssh
     chmod 700 /root/.ssh
-    cat /dev/null > /root/.ssh/authorized_keys
-    for i in "${sshkeys[@]}"; do 
-        echo $i >> /root/.ssh/authorized_keys
-    done
+    curl -s https://github.com/${sshuser}.keys > /root/.ssh/authorized_keys || exit 1
     chmod 600 /root/.ssh/authorized_keys
     sed -i 's,^#PermitRootLogin.*,PermitRootLogin prohibit-password,g' /etc/ssh/sshd_config
     systemctl enable ssh
