@@ -12,10 +12,9 @@
 #############################################
 
 usage () {
-    echo -e "\e[94m$0 [-d] [-p] [-r] [-l] [-g] [-v]\e[0m"
+    echo -e "\e[94m$0 [-d] [-p] [-r] [-l] [-g] [-s]\e[0m"
     echo -e "\t-d Don't install any docker containers."
     echo -e "\t-p Don't install PTF."
-    echo -e "\t-r Don't install PUPY RAT."
     echo -e "\t-l Don't setup root to log in automatically."
     echo -e "\t-g Don't clone select repos from github to /opt."
     echo -e "\t-s USER Install SSH Keys for USER from github https"
@@ -50,9 +49,9 @@ export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
 aptpackages=(open-vm-tools-desktop vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv sshpass)
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit)
-dockercontainers=(alxchk/pupy:unstable empireproject/empire kalilinux/kali-linux-docker python nginx)
+dockercontainers=(kalilinux/kali-linux-docker python nginx)
 verbose=1
-unset skipdocker skipptf skippupyrat skipautologin skipgithub sshuser skipdotfiles skipunpriv
+unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv
 while getopts 'hdprlgs:cv' flag; do
     case "${flag}" in
         d) skipdocker=1 ;;
@@ -90,7 +89,7 @@ else
     rm -f /etc/ssh/ssh_host_*
     dpkg-reconfigure openssh-server > /dev/null
 
-    debug "Updating everything.  Stopping packagekitd in the background."
+    debug "Updating everything.  Stopping packagekitd because a pentest distro should not auto update. -.-"
     systemctl stop packagekit
     systemctl disable packagekit
     sleep 1
@@ -184,7 +183,7 @@ BASE_INSTALL_PATH="/opt"
 LOG_PATH="src/logs/ptf.log"
 AUTO_UPDATE="ON"
 IGNORE_THESE_MODULES=""
-INCLUDE_ONLY_THESE_MODULES="modules/pivoting/3proxy,modules/webshells/b374k,modules/powershell/babadook,modules/powershell/bloodhound,modules/post-exploitation/empire,modules/powershell/empire,modules/post-exploitation/creddump7,modules/pivoting/meterssh,modules/windows-tools/netripper,modules/pivoting/pivoter,modules/pivoting/rpivot,modules/windows-tools/sidestep,modules/webshells/*"
+INCLUDE_ONLY_THESE_MODULES="modules/pivoting/3proxy,modules/webshells/b374k,modules/powershell/babadook,modules/powershell/bloodhound,modules/post-exploitation/creddump7,modules/pivoting/meterssh,modules/windows-tools/netripper,modules/pivoting/pivoter,modules/pivoting/rpivot,modules/windows-tools/sidestep,modules/webshells/*"
 IGNORE_UPDATE_ALL_MODULES=""
 EOF
     debug "Set up PTF.  PTF requires --update-all to be run in its working directory."
@@ -197,8 +196,6 @@ if [[ $skipdocker ]]; then
     debug "Skipping docker"
 else
     debug "Set up docker"
-    mkdir /etc/docker/
-    echo -e '{\n\t"iptables": false\n}' > /etc/docker/daemon.json
     systemctl enable docker
     systemctl stop docker
     systemctl daemon-reload
@@ -206,20 +203,6 @@ else
     for image in ${dockercontainers[@]}; do
         docker pull $image
     done
-fi
-
-if [[ $skippupyrat ]]; then
-    debug "Not setting up pupy."
-else
-    debug "Set up Pupy correctly"
-    pushd /opt
-    git clone --recursive https://github.com/n1nj4sec/pupy
-    pushd pupy
-    python create-workspace.py -DG pupyw
-    wget https://github.com/n1nj4sec/pupy/releases/download/latest/payload_templates.txz
-    tar xvf payload_templates.txz && mv payload_templates/* pupy/payload_templates/ && rm payload_templates.txz && rm -r payload_templates
-    popd
-    popd
 fi
 
 if [[ $skipdotfiles ]]; then
