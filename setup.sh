@@ -6,8 +6,7 @@
 #                                           #
 #  curl -Lo setup.sh https://bit.ly/2IO6kKN #
 #                                           #
-#  Don't @ me. Change the SSH key if        #
-#  you want to use this.                    #
+#  Don't @ me.                              #
 #                                           #
 #############################################
 
@@ -52,11 +51,10 @@ githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola
 dockercontainers=(kalilinux/kali-linux-docker python nginx)
 verbose=1
 unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv
-while getopts 'hdprlgs:cv' flag; do
+while getopts 'hdplgs:cq' flag; do
     case "${flag}" in
         d) skipdocker=1 ;;
         p) skipptf=1 ;;
-        r) skippupyrat=1 ;;
         l) skipautologin=1 ;;
         g) skipgithub=1 ;;
         s) sshuser=${OPTARG} ;;
