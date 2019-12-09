@@ -50,6 +50,7 @@ aptpackages=(open-vm-tools-desktop vim htop veil-* docker.io terminator git libs
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit)
 dockercontainers=(kalilinux/kali-linux-docker python nginx)
 verbose=1
+desktopenvironment=$(echo "$XDG_DATA_DIRS" | sed 's/.*\(xfce\|kde\|gnome\).*/\1/')
 unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv
 while getopts 'hdplgs:cq' flag; do
     case "${flag}" in
@@ -69,25 +70,27 @@ done
 if [[ -f ~/.firstrun ]]; then
     debug "Looks like we rebooted after a kernel update... not running initial updates."
 else
-    debug "Turning off power management, animations, and the screensaver."
-    gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
-    gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout '0'
-    gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'
-    gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout '0'
-    gsettings set org.gnome.desktop.session idle-delay '0'
-    gsettings set org.gnome.desktop.screensaver lock-enabled false
-    gsettings set org.gnome.desktop.interface enable-animations false
 
-    if ! [[ $skipautologin ]]; then
-        debug "Setting up root to automatically log in."
-        sed -i "s/^#.*AutomaticLoginEnable/AutomaticLoginEnable/g ; s/#.*AutomaticLogin/AutomaticLogin/g" /etc/gdm3/daemon.conf
+    if [[ $desktopenvironment == "gnome" ]]; then
+        debug "Turning off power management, animations, and the screensaver."
+        gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
+        gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout '0'
+        gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'
+        gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout '0'
+        gsettings set org.gnome.desktop.session idle-delay '0'
+        gsettings set org.gnome.desktop.screensaver lock-enabled false
+        gsettings set org.gnome.desktop.interface enable-animations false
+        if ! [[ $skipautologin ]]; then
+            debug "Setting up root to automatically log in."
+            sed -i "s/^#.*AutomaticLoginEnable/AutomaticLoginEnable/g ; s/#.*AutomaticLogin/AutomaticLogin/g" /etc/gdm3/daemon.conf
+        fi
     fi
 
     debug "Removing built in SSH keys"
     rm -f /etc/ssh/ssh_host_*
     dpkg-reconfigure openssh-server > /dev/null
 
-    debug "Updating everything.  Stopping packagekitd because a pentest distro should not auto update. -.-"
+    debug "Updating everything.  Stopping packagekitd for some releases of Kali."
     systemctl stop packagekit
     systemctl disable packagekit
     sleep 1
