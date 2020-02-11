@@ -52,7 +52,7 @@ export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
 aptpackages=(open-vm-tools-desktop vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv sshpass)
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
-dockercontainers=(kalilinux/kali-linux-docker python nginx)
+dockercontainers=(kalilinux/kali-linux-docker python nginx ubuntu:latest)
 verbose=1
 desktopenvironment=$(echo "$XDG_DATA_DIRS" | sed 's/.*\(xfce\|kde\|gnome\).*/\1/')
 unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv
@@ -190,7 +190,7 @@ IGNORE_UPDATE_ALL_MODULES=""
 EOF
     debug "Set up PTF.  PTF requires --update-all to be run in its working directory."
     pushd /opt/ptf
-    echo -en "use modules/install_update_all\nyes\n" | python ptf
+    echo -en "use modules/install_update_all\nyes\n" | python3 ptf
     popd
 fi
 
@@ -211,7 +211,7 @@ if [[ $skipdotfiles ]]; then
     debug "Skipping setting up dotfiles."
 else
     debug "Update terminator config"
-    mkdir .config/terminator
+    mkdir -p .config/terminator
     cat << EOF > .config/terminator/config
 [global_config]
   focus = mouse
