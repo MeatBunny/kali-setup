@@ -211,8 +211,8 @@ if [[ $skipdotfiles ]]; then
     debug "Skipping setting up dotfiles."
 else
     debug "Update terminator config"
-    mkdir -p .config/terminator
-    cat << EOF > .config/terminator/config
+    mkdir -p /root/.config/terminator
+    cat << EOF > /root/.config/terminator/config
 [global_config]
   focus = mouse
 [keybindings]
@@ -234,9 +234,8 @@ else
       parent = window0
 [plugins]
 EOF
-
     debug "Updating vimrc"
-    cat << EOF > .vimrc
+    cat << EOF > /root/.vimrc
 set tabstop=8
 set expandtab
 set shiftwidth=4
@@ -246,6 +245,12 @@ syntax on
 set nohlsearch
 set mouse-=a
 EOF
+    if [[ $autologinuser != "root" ]]; then
+        mkdir -p /home/${autologinuser}/.config/terminator
+        cp /root/.config/terminator/config /home/${autologinuser}/.config/terminator/config
+        cp /root/.vimrc /home/${autologinuser}/.vimrc
+        chown -R $autologinuser:$autologinuser /home/${autologinuser}/.config/ /home/${autologinuser}/.vimrc
+    fi
 fi
 
 debug "Misc Kali commands"
