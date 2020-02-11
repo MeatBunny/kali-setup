@@ -82,7 +82,10 @@ fi
 if [[ -f ~/.firstrun ]]; then
     debug "Looks like we rebooted after a kernel update... not running initial updates."
 else
-
+    if [[ $autologinuser != "root" ]]; then
+        debug "Setting up passwordless sudo for the sudo group."
+        sed -i 's/.*%sudo.*/%sudo         ALL = (ALL) NOPASSWD: ALL/g' /etc/sudoers
+    fi
     if [[ $desktopenvironment == "gnome" ]]; then
         debug "Turning off power management, animations, and the screensaver."
         gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
