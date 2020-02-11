@@ -54,7 +54,7 @@ aptpackages=(open-vm-tools-desktop vim htop veil-* docker.io terminator git libs
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
 dockercontainers=(kalilinux/kali-linux-docker python nginx ubuntu:latest)
 verbose=1
-desktopenvironment=$(echo "$XDG_DATA_DIRS" | sed 's/.*\(xfce\|kde\|gnome\).*/\1/')
+desktopenvironment=$(sed 's/.*\(xfce\|kde\|gnome\).*/\1/' <<< "$XDG_DATA_DIRS")
 unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv
 while getopts 'hdplgs:cq' flag; do
     case "${flag}" in
@@ -119,8 +119,7 @@ else
     apt-get -yq update >/dev/null || warn "Error in apt-get update" exitnow
     debug "Updating installed packages.  This will take a while."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq dist-upgrade >/dev/null || warn "Error in updating installed packages." exitnow
-    debug "Installing the below packages:"
-    debug "${aptpackages[@]}"
+    debug "Installing ${aptpackages[@]}"
     debug "This will take a while."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install ${aptpackages[@]} >/dev/null || warn "Error when trying to install new packages" exitnow
     debug "Autoremoving things we don't need anymore."
