@@ -119,8 +119,7 @@ else
     apt-get -yq update >/dev/null || warn "Error in apt-get update" exitnow
     debug "Updating installed packages.  This will take a while."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq dist-upgrade >/dev/null || warn "Error in updating installed packages." exitnow
-    debug "Installing ${aptpackages[@]}"
-    debug "This will take a while."
+    debug "Installing packages, this will take a while."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install ${aptpackages[@]} >/dev/null || warn "Error when trying to install new packages" exitnow
     debug "Autoremoving things we don't need anymore."
     apt-get -yq autoremove >/dev/null || warn "Error in autoremove." exitnow
