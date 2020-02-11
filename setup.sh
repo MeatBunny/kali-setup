@@ -17,7 +17,7 @@ usage () {
     echo -e "\t-l Don't setup root to log in automatically."
     echo -e "\t-g Don't clone select repos from github to /opt."
     echo -e "\t-s USER Install SSH Keys for USER from github https"
-    echo -e "\t-u Don't create a unprivilieged browser user."
+    echo -e "\t-u Set the automatic login user.  Defaults to kali (if present) or root."
     echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
     echo -e "\t-q Don't show debug messages"
     echo -e "\t-h This message"
@@ -40,6 +40,10 @@ warn () {
     sleep 1
 }
 
+if [[ $EUID -ne 0 ]]; then
+    warn "This script needs to be run as root." exitnow
+fi
+
 # Variables and settings
 # Case insensitive matching for regex
 shopt -s nocasematch
@@ -47,7 +51,7 @@ shopt -s nocasematch
 export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
 aptpackages=(open-vm-tools-desktop vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv sshpass)
-githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit)
+githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
 dockercontainers=(kalilinux/kali-linux-docker python nginx)
 verbose=1
 desktopenvironment=$(echo "$XDG_DATA_DIRS" | sed 's/.*\(xfce\|kde\|gnome\).*/\1/')
@@ -61,11 +65,19 @@ while getopts 'hdplgs:cq' flag; do
         s) sshuser=${OPTARG} ;;
         c) skipdotfiles=1 ;;
         q) verbose=0 ;;
-        u) skipunpriv=1 ;;
+        u) autologinuser=${OPTARG} ;;
         h) usage ;;
         *) usage ;;
     esac
 done
+
+if ! [[ $autologinuser ]] && grep -q 'kali' /etc/passwd; then
+    autologinuser=kali
+elif ! [[ $autologinuser ]] && ! grep -q 'kali' /etc/passwd; then
+    autologinuser=root
+elif [[ $autologinuser ]] && ! grep -q "$autologinuser" /etc/passwd; then
+    warn "Automatic login user of $autologinuser not detected." exitnow
+fi
 
 if [[ -f ~/.firstrun ]]; then
     debug "Looks like we rebooted after a kernel update... not running initial updates."
@@ -81,8 +93,8 @@ else
         gsettings set org.gnome.desktop.screensaver lock-enabled false
         gsettings set org.gnome.desktop.interface enable-animations false
         if ! [[ $skipautologin ]]; then
-            debug "Setting up root to automatically log in."
-            sed -i "s/^#.*AutomaticLoginEnable/AutomaticLoginEnable/g ; s/#.*AutomaticLogin/AutomaticLogin/g" /etc/gdm3/daemon.conf
+            debug "Setting up $autologinuser to automatically log in."
+            sed -i "s/^#.*AutomaticLoginEnable/AutomaticLoginEnable/g ; s/#.*AutomaticLogin .*/AutomaticLogin = $autologinuser/g" /etc/gdm3/daemon.conf
         fi
     fi
 
@@ -93,10 +105,12 @@ else
     debug "Updating everything.  Stopping packagekitd for some releases of Kali."
     systemctl stop packagekit
     systemctl disable packagekit
-    sleep 1
     # Sometimes a child processs from the auto update keeps running.
-    fuser -s -k /var/lib/apt/lists/lock
-    sleep 1
+    if [[ -f /var/lib/apt/lists/lock ]]; then
+        sleep 1
+        fuser -s -k /var/lib/apt/lists/lock
+        sleep 1
+    fi
     # Piping apt output to null since the -q flag doesn't get passed to the underlying dpkg for some reason. STDERR should still show.
     debug "Updating repos."
     apt-get -yq update >/dev/null || warn "Error in apt-get update" exitnow
@@ -129,31 +143,15 @@ fi
 
 if [[ $sshuser ]]; then
     debug "Adding $sshuser 's github keys."
-    mkdir /root/.ssh
-    chmod 700 /root/.ssh
+    mkdir /root/.ssh /home/$autologinuser/.ssh
+    chmod 700 /root/.ssh /home/$autologinuser/.ssh
     curl -s https://github.com/${sshuser}.keys > /root/.ssh/authorized_keys || exit 1
-    chmod 600 /root/.ssh/authorized_keys
-    sed -i 's,^#PermitRootLogin.*,PermitRootLogin prohibit-password,g' /etc/ssh/sshd_config
+    cp /root/.ssh/authorized_keys /home/$autologinuser/.ssh/
+    chmod 600 /root/.ssh/authorized_keys /home/$autologinuser/.ssh/authorized_keys
+    chown $autologinuser:$autologinuser /home/$autologinuser/.ssh /home/$autologinuser/.ssh/authorized_keys
+    sed -i 's,.*PermitRootLogin.*,PermitRootLogin prohibit-password,g ; s,.*ChallengeResponseAuthentication.*,ChallengeResponseAuthentication no,g ; s,.*PasswordAuthentication.*,PasswordAuthentication no,g' /etc/ssh/sshd_config
     systemctl enable ssh
     systemctl start ssh
-fi
-
-if [[ $skipunpriv ]]; then
-    debug "Skipping adding an unprivileged user"
-else
-    debug "Adding an unprivileged user to do stuff like web browsing over X11 forwarding."
-    unprivpass=$(tr -cd '[:alnum:]' < /dev/urandom | fold -w30 | head -n1)
-    useradd -c "Unpriviliged user" -m -s /bin/bash user
-    echo "user:$unprivpass" | chpasswd
-    echo -e "username: user\npassword: $unprivpass\n\nsshpass -p $unprivpass ssh -X user@127.0.0.1" > /root/unprivcreds.txt
-    chmod 600 /root/unprivcreds.txt
-    if [[ -f /root/.ssh/authorized_keys ]]; then
-        mkdir /home/user/.ssh
-        chmod 700 /home/user/.ssh
-        cp /root/.ssh/authorized_keys /home/user/.ssh/authorized_keys
-        chmod 600 /home/user/.ssh/authorized_keys
-        chown user:user /home/user/.ssh /home/user/.ssh/authorized_keys
-    fi
 fi
 
 if [[ $skipgithub ]]; then
