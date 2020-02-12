@@ -1,0 +1,6 @@
+BASE_INSTALL_PATH="/opt"
+LOG_PATH="src/logs/ptf.log"
+AUTO_UPDATE="ON"
+IGNORE_THESE_MODULES=""
+INCLUDE_ONLY_THESE_MODULES="modules/pivoting/3proxy,modules/webshells/b374k,modules/powershell/babadook,modules/powershell/bloodhound,modules/post-exploitation/creddump7,modules/pivoting/meterssh,modules/windows-tools/netripper,modules/pivoting/pivoter,modules/pivoting/rpivot,modules/windows-tools/sidestep,modules/webshells/*"
+IGNORE_UPDATE_ALL_MODULES=""

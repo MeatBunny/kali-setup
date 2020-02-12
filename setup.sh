@@ -44,6 +44,14 @@ if [[ $EUID -ne 0 ]]; then
     warn "This script needs to be run as root." exitnow
 fi
 
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+if ! [[ -d $scriptdir/configs ]]; then
+    scriptdir=$(mktemp -d -p /dev/shm)
+    debug "Didn't detect config files.  Cloning git repo to temp directory."
+    git clone https://github.com/MeatBunny/kali-setup.git $scriptdir
+fi
+
 # Variables and settings
 # Case insensitive matching for regex
 shopt -s nocasematch
@@ -179,14 +187,7 @@ if [[ $skipptf ]]; then
 else
     debug "Grabbing PTF from github."
     git clone  https://github.com/trustedsec/ptf /opt/ptf
-    cat << EOF > /opt/ptf/config/ptf.config
-BASE_INSTALL_PATH="/opt"
-LOG_PATH="src/logs/ptf.log"
-AUTO_UPDATE="ON"
-IGNORE_THESE_MODULES=""
-INCLUDE_ONLY_THESE_MODULES="modules/pivoting/3proxy,modules/webshells/b374k,modules/powershell/babadook,modules/powershell/bloodhound,modules/post-exploitation/creddump7,modules/pivoting/meterssh,modules/windows-tools/netripper,modules/pivoting/pivoter,modules/pivoting/rpivot,modules/windows-tools/sidestep,modules/webshells/*"
-IGNORE_UPDATE_ALL_MODULES=""
-EOF
+    cp $scriptdir/configs/ptf_config /opt/ptf/config/ptf.config
     debug "Set up PTF.  PTF requires --update-all to be run in its working directory."
     pushd /opt/ptf
     echo -en "use modules/install_update_all\nyes\n" | python3 ptf
@@ -209,45 +210,16 @@ fi
 if [[ $skipdotfiles ]]; then
     debug "Skipping setting up dotfiles."
 else
-    debug "Update terminator config"
+    debug "Updating dotfiles."
     mkdir -p /root/.config/terminator
-    cat << EOF > /root/.config/terminator/config
-[global_config]
-  focus = mouse
-[keybindings]
-[profiles]
-  [[default]]
-    cursor_color = "#aaaaaa"
-    font = Monospace 14
-    show_titlebar = False
-    scrollback_infinite = True
-    use_system_font = False
-    copy_on_selection = True
-[layouts]
-  [[default]]
-    [[[window0]]]
-      type = Window
-      parent = ""
-    [[[child1]]]
-      type = Terminal
-      parent = window0
-[plugins]
-EOF
-    debug "Updating vimrc"
-    cat << EOF > /root/.vimrc
-set tabstop=8
-set expandtab
-set shiftwidth=4
-set softtabstop=4
-set background=dark
-syntax on
-set nohlsearch
-set mouse-=a
-EOF
+    cp $scriptdir/configs/terminator_config /root/.config/terminator/config
+    cp $scriptdir/configs/bash_aliases /root/.bash_aliases
+    echo 'source /root/.bash_aliases' >> /root/.bashrc
+    cp $scriptdir/configs/vimrc /root/.vimrc
     if [[ $autologinuser != "root" ]]; then
         mkdir -p /home/${autologinuser}/.config/terminator
-        cp /root/.config/terminator/config /home/${autologinuser}/.config/terminator/config
-        cp /root/.vimrc /home/${autologinuser}/.vimrc
+        cp $scriptdir/configs/terminator_config /home/${autologinuser}/.config/terminator/config
+        cp $scriptdir/configs/vimrc /home/${autologinuser}/.vimrc
         chown -R $autologinuser:$autologinuser /home/${autologinuser}/.config/ /home/${autologinuser}/.vimrc
     fi
 fi
