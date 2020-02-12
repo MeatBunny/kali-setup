@@ -54,7 +54,8 @@ aptpackages=(open-vm-tools-desktop vim htop veil-* docker.io terminator git libs
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
 dockercontainers=(kalilinux/kali-linux-docker python nginx ubuntu:latest)
 verbose=1
-desktopenvironment=$(sed 's/.*\(xfce\|kde\|gnome\).*/\1/' <<< "$XDG_DATA_DIRS")
+# Grabbing last match to prevent false positives.
+desktopenvironment=$(ps -A | egrep -o 'gnome|kde|mate|cinnamon' | tail -1)
 unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv
 while getopts 'hdplgs:cq' flag; do
     case "${flag}" in
