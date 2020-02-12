@@ -220,7 +220,8 @@ else
         mkdir -p /home/${autologinuser}/.config/terminator
         cp $scriptdir/configs/terminator_config /home/${autologinuser}/.config/terminator/config
         cp $scriptdir/configs/vimrc /home/${autologinuser}/.vimrc
-        chown -R $autologinuser:$autologinuser /home/${autologinuser}/.config/ /home/${autologinuser}/.vimrc
+        cp $scriptdir/configs/bash_aliases /home/${autologinuser}/.bash_aliases
+        chown -R $autologinuser:$autologinuser /home/${autologinuser}/.config/ /home/${autologinuser}/.vimrc /home/${autologinuser}/.bash_aliases
     fi
 fi
 
