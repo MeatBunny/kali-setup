@@ -19,6 +19,7 @@ usage () {
     echo -e "\t-s USER Install SSH Keys for USER from github https"
     echo -e "\t-u Set the automatic login user.  Defaults to kali (if present) or root."
     echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
+    echo -e "\t-b Skip pulling Exploit Database's Binary Exploits."
     echo -e "\t-q Don't show debug messages"
     echo -e "\t-h This message"
     exit 1
@@ -64,8 +65,8 @@ dockercontainers=(kalilinux/kali-linux-docker python nginx ubuntu:latest)
 verbose=1
 # Grabbing last match to prevent false positives.
 desktopenvironment=$(ps -A | egrep -o 'gnome|kde|mate|cinnamon' | tail -1)
-unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv
-while getopts 'hdplgs:cq' flag; do
+unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv skipbinsploits
+while getopts 'hdplgs:cbq' flag; do
     case "${flag}" in
         d) skipdocker=1 ;;
         p) skipptf=1 ;;
@@ -73,6 +74,7 @@ while getopts 'hdplgs:cq' flag; do
         g) skipgithub=1 ;;
         s) sshuser=${OPTARG} ;;
         c) skipdotfiles=1 ;;
+        b) skipbinsploits=1 ;;
         q) verbose=0 ;;
         u) autologinuser=${OPTARG} ;;
         h) usage ;;
@@ -205,6 +207,12 @@ else
     for image in ${dockercontainers[@]}; do
         docker pull $image
     done
+fi
+
+if [[ $skipbinsploits ]]; then
+    debug "Skipping pulling binary exploits."
+else
+    git clone https://github.com/offensive-security/exploit-database-bin-sploits/ /opt/bin-sploits/
 fi
 
 if [[ $skipdotfiles ]]; then
