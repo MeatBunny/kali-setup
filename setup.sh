@@ -18,7 +18,7 @@ usage () {
     echo -e "\t-g Don't clone select repos from github to /opt."
     echo -e "\t-s USER Install SSH Keys for USER from github.com."
     echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
-    echo -e "\t-f Instead of this repo's dotfiles, pull 'dotfiles' from github user and run setup.sh if it exists. Implies -c."
+    echo -e "\t-f Instead of this repo's dotfiles, pull 'dotfiles' from github user and run setup.sh if it exists."
     echo -e "\t-u Set the automatic login user.  Defaults to kali (if present) or root."
     echo -e "\t-b Skip pulling Exploit Database's Binary Exploits."
     echo -e "\t-q Don't show debug messages"
@@ -60,7 +60,7 @@ shopt -s nocasematch
 # (Try to) stop apt from asking stupid questions
 export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
-aptpackages=(vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv sshpass xterm)
+aptpackages=(vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv sshpass xterm colordiff)
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
 dockercontainers=(kalilinux/kali-linux-docker python nginx ubuntu:latest)
 verbose=1
@@ -258,7 +258,8 @@ echo "$(which msfdb) start" >> /etc/rc.local
 if [[ $(ip link show) =~ 00:0c:29 ]]; then
     debug "VMWare Specific, installing vmware-tools and adding mount-share-folders script."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install open-vm-tools-desktop
-    cat <<EOF | sudo tee /usr/local/sbin/mount-shared-folders
+    if ! [[ -f /usr/local/sbin/mount-shared-folders ]]; then
+        cat <<EOF | sudo tee /usr/local/sbin/mount-shared-folders
 #!/bin/sh
 vmware-hgfsclient | while read folder; do
   vmwpath="/mnt/hgfs/\${folder}"
@@ -269,7 +270,8 @@ vmware-hgfsclient | while read folder; do
 done
 sleep 2s
 EOF
-    sudo chmod +x /usr/local/sbin/mount-shared-folders
+        sudo chmod +x /usr/local/sbin/mount-shared-folders
+    fi
     echo "/usr/local/sbin/mount-shared-folders" >> /etc/rc.local
     /usr/local/sbin/mount-shared-folders
 fi
