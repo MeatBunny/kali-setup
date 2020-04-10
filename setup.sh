@@ -98,9 +98,6 @@ else
     if [[ $autologinuser != "root" ]]; then
         debug "Setting up passwordless sudo for the sudo group."
         sed -i 's/.*%sudo.*/%sudo         ALL = (ALL) NOPASSWD: ALL/g' /etc/sudoers
-        debug "Fixing permissions for script directory $scriptdir"
-        chown -R root:$autologinuser $scriptdir
-        chmod 770 $scriptdir
     fi
     if [[ $desktopenvironment == "gnome" ]]; then
         debug "Turning off power management, animations, and the screensaver."
@@ -221,8 +218,11 @@ else
 fi
 
 if [[ $githubdotfiles ]]; then
-    debug "Pulling dotfiles from ${sshuser}.  Adding ssh-keys."
     # git throws a hissy fit for some reason when run as root.
+    debug "Fixing permissions for script directory $scriptdir"
+    chown -R root:$autologinuser $scriptdir
+    chmod 770 $scriptdir
+    debug "Pulling dotfiles from ${sshuser}.  Adding ssh-keys."
     sudo -u $autologinuser $scriptdir/dotfile-clone.sh $autologinuser $sshuser
 elif [[ $skipdotfiles ]]; then
     debug "Skipping setting up dotfiles."
