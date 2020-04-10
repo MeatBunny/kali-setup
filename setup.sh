@@ -253,7 +253,7 @@ if [[ $(ip link show) =~ 00:0c:29 ]]; then
     debug "VMWare Specific, installing vmware-tools and adding mount-share-folders script."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install open-vm-tools-desktop
     if ! [[ -f /usr/local/sbin/mount-shared-folders ]]; then
-        cat <<EOF | sudo tee /usr/local/sbin/mount-shared-folders
+        cat << EOF > /usr/local/sbin/mount-shared-folders
 #!/bin/sh
 vmware-hgfsclient | while read folder; do
   vmwpath="/mnt/hgfs/\${folder}"
