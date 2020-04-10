@@ -218,23 +218,9 @@ else
 fi
 
 if [[ $githubdotfiles ]]; then
-    pushd /home/$autologinuser
     debug "Pulling dotfiles from ${sshuser}.  Adding ssh-keys."
-    # Code 0 means keys are added, 1 means working but no keys, 2 is no agent.
-    agentstatus=$(ssh-add -l >/dev/null 2>&1 ; echo $?)
-    if [[ $agentstatus -eq "2" ]]; then
-        eval $(ssh-agent)
-    fi
-    for file in $(grep -irl 'PRIVATE KEY' .ssh/); do
-        ssh-add $file
-    done
-    git clone git@github.com:${sshuser}/dotfiles.git
-    if [[ -f ./dotfiles/setup.sh ]]; then
-        pushd dotfiles
-        ./setup.sh
-        popd
-    fi
-    popd
+    # git throws a hissy fit for some reason when run as root.
+    sudo -u $autologinuser $scriptdir/dotfile-clone.sh $autologinuser $sshuser
 elif [[ $skipdotfiles ]]; then
     debug "Skipping setting up dotfiles."
 else
