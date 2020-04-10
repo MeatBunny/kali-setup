@@ -282,6 +282,8 @@ EOF
 fi
 
 echo "exit 0" >> /etc/rc.local
+chmod +x /etc/rc.local
+cp ${scriptdir}/configs/rc-local.service /etc/systemd/system/rc-local.service
 systemctl enable rc-local
 
 debug "Update mlocate"
