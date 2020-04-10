@@ -75,7 +75,7 @@ while getopts 'hdplgs:cfbq' flag; do
         g) skipgithub=1 ;;
         s) sshuser=${OPTARG} ;;
         c) skipdotfiles=1 ;;
-        f) githubdotfiles=1 
+        f) githubdotfiles=1 ;;
         b) skipbinsploits=1 ;;
         q) verbose=0 ;;
         u) autologinuser=${OPTARG} ;;
