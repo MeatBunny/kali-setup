@@ -46,14 +46,6 @@ if [[ $EUID -ne 0 ]]; then
     warn "This script needs to be run as root." exitnow
 fi
 
-scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-
-if ! [[ -d $scriptdir/configs ]]; then
-    scriptdir=$(mktemp -d -p /dev/shm)
-    debug "Didn't detect config files.  Cloning git repo to temp directory."
-    git clone https://github.com/MeatBunny/kali-setup.git $scriptdir
-fi
-
 # Variables and settings
 # Case insensitive matching for regex
 shopt -s nocasematch
@@ -83,6 +75,14 @@ while getopts 'hdplgs:cfbq' flag; do
         *) usage ;;
     esac
 done
+
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+if ! [[ -d $scriptdir/configs ]]; then
+    scriptdir=$(mktemp -d -p /dev/shm)
+    debug "Didn't detect config files.  Cloning git repo to temp directory."
+    git clone https://github.com/MeatBunny/kali-setup.git $scriptdir
+fi
 
 if ! [[ $autologinuser ]] && grep -q 'kali' /etc/passwd; then
     autologinuser=kali
