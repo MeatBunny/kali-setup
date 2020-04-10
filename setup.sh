@@ -58,7 +58,7 @@ githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola
 dockercontainers=(kalilinux/kali-rolling python nginx ubuntu:latest)
 verbose=1
 # Grabbing last match to prevent false positives.
-desktopenvironment=$(ps -A | egrep -o 'gnome|kde|mate|cinnamon' | tail -1)
+desktopenvironment=$(ps -A | egrep -v 'polkit' | egrep -o 'gnome|xfce' | tail -1)
 unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv skipbinsploits githubdotfiles
 while getopts 'hdplgs:cfbq' flag; do
     case "${flag}" in
