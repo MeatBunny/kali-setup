@@ -54,7 +54,7 @@ export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
 aptpackages=(vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv sshpass xterm colordiff)
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
-dockercontainers=(kalilinux/kali-linux-docker python nginx ubuntu:latest)
+dockercontainers=(kalilinux/kali-rolling python nginx ubuntu:latest)
 verbose=1
 # Grabbing last match to prevent false positives.
 desktopenvironment=$(ps -A | egrep -o 'gnome|kde|mate|cinnamon' | tail -1)
