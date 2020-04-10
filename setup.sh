@@ -16,9 +16,10 @@ usage () {
     echo -e "\t-p Don't install PTF."
     echo -e "\t-l Don't setup root to log in automatically."
     echo -e "\t-g Don't clone select repos from github to /opt."
-    echo -e "\t-s USER Install SSH Keys for USER from github https"
-    echo -e "\t-u Set the automatic login user.  Defaults to kali (if present) or root."
+    echo -e "\t-s USER Install SSH Keys for USER from github.com."
     echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
+    echo -e "\t-f Instead of this repo's dotfiles, pull 'dotfiles' from github user and run setup.sh if it exists. Implies -c."
+    echo -e "\t-u Set the automatic login user.  Defaults to kali (if present) or root."
     echo -e "\t-b Skip pulling Exploit Database's Binary Exploits."
     echo -e "\t-q Don't show debug messages"
     echo -e "\t-h This message"
@@ -59,14 +60,14 @@ shopt -s nocasematch
 # (Try to) stop apt from asking stupid questions
 export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
-aptpackages=(open-vm-tools-desktop vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv sshpass xterm)
+aptpackages=(vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv sshpass xterm)
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
 dockercontainers=(kalilinux/kali-linux-docker python nginx ubuntu:latest)
 verbose=1
 # Grabbing last match to prevent false positives.
 desktopenvironment=$(ps -A | egrep -o 'gnome|kde|mate|cinnamon' | tail -1)
 unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv skipbinsploits
-while getopts 'hdplgs:cbq' flag; do
+while getopts 'hdplgs:cfbq' flag; do
     case "${flag}" in
         d) skipdocker=1 ;;
         p) skipptf=1 ;;
@@ -74,6 +75,7 @@ while getopts 'hdplgs:cbq' flag; do
         g) skipgithub=1 ;;
         s) sshuser=${OPTARG} ;;
         c) skipdotfiles=1 ;;
+        f) githubdotfiles=1 
         b) skipbinsploits=1 ;;
         q) verbose=0 ;;
         u) autologinuser=${OPTARG} ;;
@@ -215,7 +217,20 @@ else
     git clone https://github.com/offensive-security/exploit-database-bin-sploits/ /opt/bin-sploits/
 fi
 
-if [[ $skipdotfiles ]]; then
+if [[ $githubdotfiles ]]; then
+    pushd /home/$autologinuser
+    debug "Pulling dotfiles from ${sshuser}.  Adding ssh-keys."
+    for file in $(grep -irl 'PRIVATE KEY' .ssh/); do
+        ssh-add $file
+    done
+    git clone git@github.com:${sshuser}/dotfiles.git
+    if [[ -f ./dotfiles/setup.sh ]]; then
+        pushd dotfiles
+        ./setup.sh
+        popd
+    fi
+    popd
+elif [[ $skipdotfiles ]]; then
     debug "Skipping setting up dotfiles."
 else
     debug "Updating dotfiles."
@@ -237,6 +252,30 @@ debug "Misc Kali commands"
 debug "MSFDB init"
 msfdb init
 msfdb start
+echo -e '#!/bin/sh\nsleep 10' > /etc/rc.local
+echo "$(which msfdb) start" >> /etc/rc.local
+
+if [[ $(ip link show) =~ 00:0c:29 ]]; then
+    debug "VMWare Specific, installing vmware-tools and adding mount-share-folders script."
+    apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install open-vm-tools-desktop
+    cat <<EOF | sudo tee /usr/local/sbin/mount-shared-folders
+#!/bin/sh
+vmware-hgfsclient | while read folder; do
+  vmwpath="/mnt/hgfs/\${folder}"
+  echo "[i] Mounting \${folder}   (\${vmwpath})"
+  sudo mkdir -p "\${vmwpath}"
+  sudo umount -f "\${vmwpath}" 2>/dev/null
+  sudo vmhgfs-fuse -o allow_other -o auto_unmount ".host:/\${folder}" "\${vmwpath}"
+done
+sleep 2s
+EOF
+    sudo chmod +x /usr/local/sbin/mount-shared-folders
+    echo "/usr/local/sbin/mount-shared-folders" >> /etc/rc.local
+    /usr/local/sbin/mount-shared-folders
+fi
+
+echo "exit 0" >> /etc/rc.local
+systemctl enable rc-local
 
 debug "Update mlocate"
 updatedb
