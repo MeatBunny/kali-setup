@@ -113,8 +113,18 @@ else
             debug "Setting up $autologinuser to automatically log in."
             sed -i "s/^#.*AutomaticLoginEnable/AutomaticLoginEnable/g ; s/#.*AutomaticLogin .*/AutomaticLogin = $autologinuser/g" /etc/gdm3/daemon.conf
         fi
+    elif [[ $desktopenvironment == "xfce" ]]; then
+        if ! [[ $skipautologin ]]; then
+            debug "Setting up $autologinuser to automatically log in."
+            echo -e "[SeatDefaults]\nautologin-user=${autologinuser}\nautologin-user-timeout=0" >> /etc/lightdm/lightdm.conf.d/50-custom.conf
+        fi
+        debug "Turning off power management, animations, and the screensaver."
+        sudo -u $autologinuser gsettings set org.gnome.desktop.session idle-delay '0'
+        sudo -u $autologinuser gsettings set org.gnome.desktop.screensaver lock-enabled false
+        sudo -u $autologinuser gsettings set org.gnome.desktop.interface enable-animations false
+        cat $scriptdir/configs/xfce4-power-manager.xml > /home/$autologinuser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml
+        sudo -u $autologinuser xfce4-power-manager --restart
     fi
-
     debug "Removing built in SSH keys"
     rm -f /etc/ssh/ssh_host_*
     dpkg-reconfigure openssh-server > /dev/null
