@@ -17,6 +17,7 @@ usage () {
     echo -e "\t-l Don't setup root to log in automatically."
     echo -e "\t-g Don't clone select repos from github to /opt."
     echo -e "\t-s USER Install SSH Keys for USER from github.com."
+    echo -e "\t   Optional HTTP(S) SSHKEYURL environment variable to pull private key from."
     echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
     echo -e "\t-f Instead of this repo's dotfiles, pull 'dotfiles' from github user and run setup.sh if it exists."
     echo -e "\t-u Set the automatic login user.  Defaults to kali (if present) or root."
@@ -58,7 +59,7 @@ dockercontainers=(kalilinux/kali-rolling python nginx ubuntu:latest)
 verbose=1
 # Grabbing last match to prevent false positives.
 desktopenvironment=$(ps -A | egrep -o 'gnome|kde|mate|cinnamon' | tail -1)
-unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv skipbinsploits
+unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv skipbinsploits githubdotfiles
 while getopts 'hdplgs:cfbq' flag; do
     case "${flag}" in
         d) skipdocker=1 ;;
@@ -160,6 +161,14 @@ if [[ $sshuser ]]; then
     mkdir /root/.ssh /home/$autologinuser/.ssh
     chmod 700 /root/.ssh /home/$autologinuser/.ssh
     curl -s https://github.com/${sshuser}.keys > /root/.ssh/authorized_keys || exit 1
+    if [[ $SSHKEYURL ]]; then
+        debug "Pulling $SSHKEYURL and saving to root and ${autologinuser}."
+        FILENAME=$(basename $SSHKEYURL)
+        curl -sSLo $SSHKEYURL /root/.ssh/$FILENAME || exit 1
+        chmod 600 /root/.ssh/$FILENAME
+        cp /root/.ssh/$FILENAME /home/$autologinuser/.ssh/$FILENAME
+        chown $autologinuser:$autologinuser /home/$autologinuser/.ssh/$FILENAME
+    fi
     cp /root/.ssh/authorized_keys /home/$autologinuser/.ssh/
     chmod 600 /root/.ssh/authorized_keys /home/$autologinuser/.ssh/authorized_keys
     chown $autologinuser:$autologinuser /home/$autologinuser/.ssh /home/$autologinuser/.ssh/authorized_keys
