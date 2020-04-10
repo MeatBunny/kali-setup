@@ -98,16 +98,19 @@ else
     if [[ $autologinuser != "root" ]]; then
         debug "Setting up passwordless sudo for the sudo group."
         sed -i 's/.*%sudo.*/%sudo         ALL = (ALL) NOPASSWD: ALL/g' /etc/sudoers
+        debug "Fixing permissions for script directory $scriptdir"
+        chown -R root:$autologinuser $scriptdir
+        chmod 770 $scriptdir
     fi
     if [[ $desktopenvironment == "gnome" ]]; then
         debug "Turning off power management, animations, and the screensaver."
-        gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
-        gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout '0'
-        gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'
-        gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout '0'
-        gsettings set org.gnome.desktop.session idle-delay '0'
-        gsettings set org.gnome.desktop.screensaver lock-enabled false
-        gsettings set org.gnome.desktop.interface enable-animations false
+        sudo -u $autologinuser gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
+        sudo -u $autologinuser gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout '0'
+        sudo -u $autologinuser gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'
+        sudo -u $autologinuser gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout '0'
+        sudo -u $autologinuser gsettings set org.gnome.desktop.session idle-delay '0'
+        sudo -u $autologinuser gsettings set org.gnome.desktop.screensaver lock-enabled false
+        sudo -u $autologinuser gsettings set org.gnome.desktop.interface enable-animations false
         if ! [[ $skipautologin ]]; then
             debug "Setting up $autologinuser to automatically log in."
             sed -i "s/^#.*AutomaticLoginEnable/AutomaticLoginEnable/g ; s/#.*AutomaticLogin .*/AutomaticLogin = $autologinuser/g" /etc/gdm3/daemon.conf
@@ -156,7 +159,7 @@ else
 fi
 
 if [[ $sshuser ]]; then
-    debug "Adding $sshuser 's github keys."
+    debug "Adding ${sshuser}'s github keys."
     mkdir /root/.ssh /home/$autologinuser/.ssh
     chmod 700 /root/.ssh /home/$autologinuser/.ssh
     curl -s https://github.com/${sshuser}.keys > /root/.ssh/authorized_keys || exit 1
