@@ -174,7 +174,7 @@ if [[ $sshuser ]]; then
     if [[ $SSHKEYURL ]]; then
         debug "Pulling $SSHKEYURL and saving to root and ${autologinuser}."
         FILENAME=$(basename $SSHKEYURL)
-        curl -sSLo $SSHKEYURL /root/.ssh/$FILENAME || exit 1
+        curl -sSLo /root/.ssh/$FILENAME $SSHKEYURL || exit 1
         chmod 600 /root/.ssh/$FILENAME
         cp /root/.ssh/$FILENAME /home/$autologinuser/.ssh/$FILENAME
         chown $autologinuser:$autologinuser /home/$autologinuser/.ssh/$FILENAME
