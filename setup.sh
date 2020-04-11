@@ -271,7 +271,7 @@ echo "$(which msfdb) start" >> /etc/rc.local
 if [[ $(ip link show) =~ 00:0c:29 ]]; then
     debug "VMWare Specific, installing vmware-tools and adding mount-share-folders script."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install open-vm-tools-desktop
-    if ! [[ -f /usr/local/sbin/mount-shared-folders ]]; then
+    if ! [[ -e /usr/local/sbin/mount-shared-folders ]]; then
         cat << EOF > /usr/local/sbin/mount-shared-folders
 #!/bin/sh
 vmware-hgfsclient | while read folder; do
