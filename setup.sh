@@ -116,7 +116,8 @@ else
     elif [[ $desktopenvironment == "xfce" ]]; then
         if ! [[ $skipautologin ]]; then
             debug "Setting up $autologinuser to automatically log in."
-            echo -e "[SeatDefaults]\nautologin-user=${autologinuser}\nautologin-user-timeout=0" >> /etc/lightdm/lightdm.conf.d/50-custom.conf
+            #echo -e "[SeatDefaults]\nautologin-user=${autologinuser}\nautologin-user-timeout=0" >> /etc/lightdm/lightdm.conf.d/50-custom.conf
+            sed -i "s,\[Seat:\*\],[Seat:*]\nautologin-guest=false\nautologin-user=$autologinuser\nautologin-user-timeout=0,g" /etc/lightdm/lightdm.conf
         fi
         debug "Turning off power management, animations, and the screensaver."
         sudo -u $autologinuser gsettings set org.gnome.desktop.session idle-delay '0'
