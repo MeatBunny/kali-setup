@@ -53,7 +53,7 @@ shopt -s nocasematch
 # (Try to) stop apt from asking stupid questions
 export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
-aptpackages=(vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python-pip tcpdump python-virtualenv sshpass xterm colordiff)
+aptpackages=(vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python3-pip tcpdump python3-virtualenv sshpass xterm colordiff)
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
 dockercontainers=(kalilinux/kali-rolling python nginx ubuntu:latest)
 verbose=1
