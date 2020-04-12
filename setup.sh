@@ -171,6 +171,8 @@ else
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install ${aptpackages[@]} >/dev/null || warn "Error when trying to install new packages" exitnow
     debug "Autoremoving things we don't need anymore."
     apt-get -yq autoremove >/dev/null || warn "Error in autoremove." exitnow
+    debug "Settings cap_net_bind_service for some binaries (Python, Ruby, netcat, etc) to allow low port-asignment without needing root."
+    find /bin /sbin /usr/sbin /usr/bin -regextype egrep -type f  -iregex '.*(python|ruby|/ncat|nc.traditional).*' -exec file {} \; | awk -F':' '/ELF/ { print $1 }' | xargs -I '{}' setcap cap_net_bind_service=ep {}
     touch /root/.firstrun
 fi
 
