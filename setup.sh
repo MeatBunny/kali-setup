@@ -18,6 +18,7 @@ usage () {
     echo -e "\t-g Don't clone select repos from github to /opt."
     echo -e "\t-s USER Install SSH Keys for USER from github.com."
     echo -e "\t   Optional HTTP(S) SSHKEYURL environment variable to pull private key from."
+    echo -e "\t   Remember to use sudo -E (SSHKEYURL=https://192.168.0.10/id_rsa sudo -E ./setup.sh -fs username)"
     echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
     echo -e "\t-f Instead of this repo's dotfiles, pull 'dotfiles' from github user and run setup.sh if it exists."
     echo -e "\t-u Set the automatic login user.  Defaults to kali (if present) or root."
@@ -47,17 +48,22 @@ if [[ $EUID -ne 0 ]]; then
     warn "This script needs to be run as root." exitnow
 fi
 
+if ! grep -q '/usr/sbin' <<< $PATH; then
+    debug "Changing PATH since it's missing /usr/sbin"
+    export PATH='/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin'
+fi
+
 # Variables and settings
 # Case insensitive matching for regex
 shopt -s nocasematch
 # (Try to) stop apt from asking stupid questions
 export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
-aptpackages=(vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python3-pip tcpdump python3-virtualenv sshpass xterm colordiff)
+aptpackages=(vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python3-pip tcpdump python3-virtualenv sshpass xterm colordiff mingw-64)
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
-dockercontainers=(kalilinux/kali-rolling python nginx ubuntu:latest)
+dockercontainers=(kalilinux/kali-rolling python nginx linuxserver/letsencrypt ubuntu:latest phusion/holy-build-box-32 phusion/holy-build-box-64)
 verbose=1
-# Grabbing last match to prevent false positives.
+# This is a dirty hack, I'm open to alternatives.
 desktopenvironment=$(ps -A | egrep -v 'polkit' | egrep -o 'gnome|xfce' | tail -1)
 unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv skipbinsploits githubdotfiles
 while getopts 'hdplgs:cfbq' flag; do
