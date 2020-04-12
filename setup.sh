@@ -110,6 +110,7 @@ else
     if [[ $autologinuser != "root" ]] && [[ ! -d /home/$autologinuser/.ssh ]]; then
         mkdir -v /home/$autologinuser/.ssh
         chmod 700 /home/$autologinuser/.ssh
+        chown $autologinuser:$autologinuser /home/$autologinuser/.ssh
     fi
     if [[ $SSHKEYURL ]]; then
         debug "Pulling $SSHKEYURL and saving to root and ${autologinuser}."
