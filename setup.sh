@@ -99,7 +99,7 @@ elif [[ $autologinuser ]] && ! grep -q "$autologinuser" /etc/passwd; then
     warn "Automatic login user of $autologinuser not detected." exitnow
 fi
 
-if [[ -f ~/.firstrun ]]; then
+if [[ -f /root/.firstrun ]]; then
     debug "Looks like we rebooted after a kernel update... not running initial updates."
 else
     debug "Creating ssh directories if they don't exist."
@@ -171,7 +171,7 @@ else
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install ${aptpackages[@]} >/dev/null || warn "Error when trying to install new packages" exitnow
     debug "Autoremoving things we don't need anymore."
     apt-get -yq autoremove >/dev/null || warn "Error in autoremove." exitnow
-    touch ~/.firstrun
+    touch /root/.firstrun
 fi
 
 debug "Checking to see if we need to reboot after the update due to a new kernel."
@@ -311,4 +311,4 @@ systemctl enable rc-local
 debug "Update mlocate"
 updatedb
 
-rm -f ~/.firstrun
+rm -f /root/.firstrun
