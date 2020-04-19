@@ -143,7 +143,7 @@ else
             sed -i "s,^\[Seat:\*\],[Seat:*]\nautologin-guest=false\nautologin-user=$autologinuser\nautologin-user-timeout=0,g" /etc/lightdm/lightdm.conf
             if [[ $autologinuser != "root" ]]; then
                 debug "Don't have chromium ask for keyring."
-                sed -i 's#/usr/bin/chromium#/usr/bin/chromium --password-store=basic#g' $(grep -irl 'Name=Chromium Web Browser' /home/$autologinuser/.config/xfce4/)
+                sed -i 's#/usr/bin/chromium %U#/usr/bin/chromium --password-store=basic %U#g' $(grep -irl 'Name=Chromium Web Browser' /home/$autologinuser/.config/xfce4/)
             fi
         fi
         debug "Turning off power management, animations, and the screensaver."
