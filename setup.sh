@@ -59,7 +59,7 @@ shopt -s nocasematch
 # (Try to) stop apt from asking stupid questions
 export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
-aptpackages=(vim htop veil-* docker.io terminator git libssl1.0-dev libffi-dev python-dev python3-pip tcpdump python3-virtualenv sshpass xterm colordiff mingw-w64)
+aptpackages=(vim htop veil-* terminator git libssl1.0-dev libffi-dev python-dev python3-pip tcpdump python3-virtualenv sshpass xterm colordiff mingw-w64)
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
 dockercontainers=(kalilinux/kali-rolling python nginx linuxserver/letsencrypt ubuntu:latest phusion/holy-build-box-32 phusion/holy-build-box-64)
 verbose=1
@@ -143,7 +143,7 @@ else
             sed -i "s,^\[Seat:\*\],[Seat:*]\nautologin-guest=false\nautologin-user=$autologinuser\nautologin-user-timeout=0,g" /etc/lightdm/lightdm.conf
             if [[ $autologinuser != "root" ]]; then
                 debug "Don't have chromium ask for keyring."
-                sed -i 's#/usr/bin/chromium %U#/usr/bin/chromium --password-store=basic %U#g' $(grep -irl 'Name=Chromium Web Browser' /home/$autologinuser/.config/xfce4/)
+                sed -i 's#/usr/bin/chromium %U#/usr/bin/chromium --password-store=basic %U#g' $(grep -irl 'Name=Chromium Web Browser' /home/$autologinuser/.config/xfce4/) /usr/share/applications/chromium.desktop
             fi
         fi
         debug "Turning off power management, animations, and the screensaver."
@@ -240,6 +240,8 @@ fi
 if [[ $skipdocker ]]; then
     debug "Skipping docker"
 else
+    debug "Installing Docker"
+    apt-get install -y docker.io
     debug "Set up docker"
     systemctl enable docker
     systemctl stop docker
