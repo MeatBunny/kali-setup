@@ -102,6 +102,8 @@ fi
 if [[ -f /root/.firstrun ]]; then
     debug "Looks like we rebooted after a kernel update... not running initial updates."
 else
+    debug "Disabling system beep."
+    echo -e '#!/bin/sh\nsetterm -blength 0' > /etc/profile.d/disable-beep.sh
     debug "Creating ssh directories if they don't exist."
     if [[ ! -d /root/.ssh/ ]]; then
         mkdir -v /root/.ssh
@@ -183,10 +185,10 @@ fi
 debug "Checking to see if we need to reboot after the update due to a new kernel."
 running=$(uname -r)
 ondisk=$(dpkg --list | awk '/linux-image-[0-9]+/ {print $2}' | sort -V | tail -1)
-if [[ $ondisk == *${running}* ]]; then
+if [[ $ondisk == *${running}* ]] || ! [[ -f /var/run/reboot-required ]]; then
     debug "Looks good ... continuing."
 else
-    warn "Looks like the running kernel ($running) doesn't match the on disk kernel ($ondisk) after the update."
+    warn "Looks like we need to reboot due to an update."
     echo "You're probably going to want to reboot and run this script again to avoid errors with PTF."
     read -p "Reboot? [Y/n]"
     if [[ ${REPLY,,} =~ ^n ]]; then
