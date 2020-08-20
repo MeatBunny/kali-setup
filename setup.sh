@@ -14,14 +14,14 @@ usage () {
     echo -e "\e[94m$0 [-d] [-p] [-r] [-l] [-g] [-s]\e[0m"
     echo -e "\t-d Don't install any docker containers."
     echo -e "\t-p Don't install PTF."
-    echo -e "\t-l Don't setup root to log in automatically."
+    echo -e "\t-l Don't setup a user to log in automatically."
+    echo -e "\t-u Set the automatic login user.  Defaults to kali (if present) or root."
     echo -e "\t-g Don't clone select repos from github to /opt."
     echo -e "\t-s USER Install SSH Keys for USER from github.com."
     echo -e "\t   Optional HTTP(S) SSHKEYURL environment variable to pull private key from."
     echo -e "\t   Remember to use sudo -E (SSHKEYURL=http://192.168.0.10:8080/id_rsa sudo -E ./setup.sh -fs username)"
     echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
     echo -e "\t-f Instead of this repo's dotfiles, pull 'dotfiles' from github user and run setup.sh if it exists."
-    echo -e "\t-u Set the automatic login user.  Defaults to kali (if present) or root."
     echo -e "\t-b Skip pulling Exploit Database's Binary Exploits."
     echo -e "\t-q Don't show debug messages"
     echo -e "\t-h This message"
@@ -103,7 +103,8 @@ if [[ -f /root/.firstrun ]]; then
     debug "Looks like we rebooted after a kernel update... not running initial updates."
 else
     debug "Disabling system beep."
-    echo -e '#!/bin/sh\nsetterm -blength 0' > /etc/profile.d/disable-beep.sh
+    echo -e '#!/bin/sh\nsetterm blength 0' > /etc/profile.d/disable-beep.sh
+    chmod 755 /etc/profile.d/disable-beep.sh
     debug "Creating ssh directories if they don't exist."
     if [[ ! -d /root/.ssh/ ]]; then
         mkdir -v /root/.ssh
