@@ -59,14 +59,14 @@ shopt -s nocasematch
 # (Try to) stop apt from asking stupid questions
 export DEBIAN_FRONTEND=noninteractive
 # Packages to install after update.
-aptpackages=(vim htop veil-* terminator git libssl1.0-dev libffi-dev python-dev python3-pip tcpdump python3-virtualenv sshpass xterm colordiff mingw-w64)
+aptpackages=(vim htop veil-* terminator git libssl1.0-dev libffi-dev python2.7-dev python3-dev python3-pip tcpdump python3-virtualenv sshpass xterm colordiff mingw-w64)
 githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
-dockercontainers=(kalilinux/kali-rolling python nginx linuxserver/letsencrypt ubuntu:latest phusion/holy-build-box-32 phusion/holy-build-box-64)
+dockercontainers=(kalilinux/kali-rolling python:2.7 python nginx linuxserver/letsencrypt ubuntu:latest phusion/holy-build-box-32 phusion/holy-build-box-64)
 verbose=1
 # This is a dirty hack, I'm open to alternatives.
 desktopenvironment=$(ps -A | egrep -v 'polkit' | egrep -o 'gnome|xfce' | tail -1)
 unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv skipbinsploits githubdotfiles
-while getopts 'hdplgs:cfbq' flag; do
+while getopts 'hdplgs:cfbqu' flag; do
     case "${flag}" in
         d) skipdocker=1 ;;
         p) skipptf=1 ;;
@@ -202,9 +202,11 @@ fi
 if [[ $sshuser ]]; then
     debug "Adding ${sshuser}'s github keys."
     curl -s https://github.com/${sshuser}.keys > /root/.ssh/authorized_keys || exit 1
-    cp /root/.ssh/authorized_keys /home/$autologinuser/.ssh/
-    chmod 600 /root/.ssh/authorized_keys /home/$autologinuser/.ssh/authorized_keys
-    chown $autologinuser:$autologinuser /home/$autologinuser/.ssh /home/$autologinuser/.ssh/authorized_keys
+    if [[ $autologinuser != "root" ]]; then
+        cp /root/.ssh/authorized_keys /home/$autologinuser/.ssh/
+        chmod 600 /root/.ssh/authorized_keys /home/$autologinuser/.ssh/authorized_keys
+        chown $autologinuser:$autologinuser /home/$autologinuser/.ssh /home/$autologinuser/.ssh/authorized_keys
+    fi
     sed -i 's,.*PermitRootLogin.*,PermitRootLogin prohibit-password,g ; s,.*ChallengeResponseAuthentication.*,ChallengeResponseAuthentication no,g ; s,.*PasswordAuthentication.*,PasswordAuthentication no,g' /etc/ssh/sshd_config
     systemctl enable ssh
     systemctl start ssh
@@ -293,7 +295,7 @@ msfdb start
 echo -e '#!/bin/sh\nsleep 10' > /etc/rc.local
 echo "$(which msfdb) start" >> /etc/rc.local
 
-if [[ $(ip link show) =~ 00:0c:29 ]]; then
+if [[ $(ip link show) =~ 00:0c:29 ]] || ps -ef | grep -q vmtoolsd; then
     debug "VMWare Specific, installing vmware-tools and adding mount-share-folders script."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install open-vm-tools-desktop
     if ! [[ -e /usr/local/sbin/mount-shared-folders ]]; then
