@@ -120,8 +120,10 @@ else
         FILENAME=$(basename $SSHKEYURL)
         curl -sSLo /root/.ssh/$FILENAME $SSHKEYURL || exit 1
         chmod 600 /root/.ssh/$FILENAME
-        cp /root/.ssh/$FILENAME /home/$autologinuser/.ssh/$FILENAME
-        chown $autologinuser:$autologinuser /home/$autologinuser/.ssh/$FILENAME
+        if [[ $autologinuser != "root" ]]; then
+            cp /root/.ssh/$FILENAME /home/$autologinuser/.ssh/$FILENAME
+            chown $autologinuser:$autologinuser /home/$autologinuser/.ssh/$FILENAME
+        fi
     fi
     if [[ $autologinuser != "root" ]]; then
         debug "Setting up passwordless sudo for the sudo group."
@@ -153,8 +155,19 @@ else
         sudo -u $autologinuser gsettings set org.gnome.desktop.session idle-delay '0'
         sudo -u $autologinuser gsettings set org.gnome.desktop.screensaver lock-enabled false
         sudo -u $autologinuser gsettings set org.gnome.desktop.interface enable-animations false
-        cat $scriptdir/configs/xfce4-power-manager.xml > /home/$autologinuser/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml
-        sudo -u $autologinuser xfce4-power-manager --restart
+        if [[ $autologinuser = "root" ]]; then
+            if ! [[ -d /root/.config/xfce4/xfconf/xfce-perchannel-xml/ ]]; then
+                mkdir -pv /root/.config/xfce4/xfconf/xfce-perchannel-xml/
+            fi
+            cat $scriptdir/configs/xfce4-power-manager.xml > /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml
+            # xfce4-power-manager --restart
+        else
+            if ! [[ -d /home/$autologinuser/.config/xfce4/xfconf/xfce-perchannel-xml/ ]]; then
+                mkdir -pv /home/$autologinuser/.config/xfce4/xfconf/xfce-perchannel-xml/
+            fi
+            cat $scriptdir/configs/xfce4-power-manager.xml > /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml
+            # sudo -u $autologinuser xfce4-power-manager --restart
+        fi
     fi
     debug "Removing built in SSH keys"
     rm -f /etc/ssh/ssh_host_*
