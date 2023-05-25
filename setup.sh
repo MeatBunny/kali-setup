@@ -192,7 +192,7 @@ else
     debug "Autoremoving things we don't need anymore."
     apt-get -yq autoremove >/dev/null || warn "Error in autoremove." exitnow
     debug "Settings cap_net_bind_service for some binaries (Python, Ruby, netcat, etc) to allow low port-asignment without needing root."
-    find /bin /sbin /usr/sbin /usr/bin -regextype egrep -type f  -iregex '.*(python|ruby|/ncat|nc.traditional).*' -exec file {} \; | awk -F':' '/ELF/ { print $1 }' | xargs -I '{}' setcap cap_net_bind_service=ep {}
+    find /bin /sbin /usr/sbin /usr/bin -regextype egrep -type f  -iregex '.*(python|ruby|/ncat|nc.traditional|nmap).*' -exec file {} \; | awk -F':' '/ELF/ { print $1 }' | xargs -I '{}' cap_net_raw,cap_net_bind_service=+eip {}
     touch /root/.firstrun
 fi
 
