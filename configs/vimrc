@@ -6,3 +6,6 @@ set background=dark
 syntax on
 set nohlsearch
 set mouse-=a
+" notepad.exe-like F5 timestamps
+nmap <F5> i<C-R>=strftime("%F %H:%M:%S%t")<CR><Esc>
+imap <F5> <C-R>=strftime("%F %H:%M:%S%t")<CR>
