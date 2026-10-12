@@ -46,19 +46,25 @@ warn () {
     sleep 1
 }
 
-if [[ $EUID -ne 0 ]]; then
-    warn "This script needs to be run as root." exitnow
-fi
-
-if ! grep -q '/usr/sbin' <<< $PATH; then
-    debug "Changing PATH since it's missing /usr/sbin"
-    export PATH='/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin'
-fi
-
 # Variables and settings
 export DEBIAN_FRONTEND=noninteractive
 aptpackages=(vim htop terminator git libssl-dev libffi-dev python3-dev python3-pip pipx python3-venv tcpdump sshpass xterm colordiff mingw-w64 plocate podman podman-docker)
+
+# Piping apt output to null since the -q flag doesn't get passed to the underlying dpkg for some reason.
+# STDERR should still show.
 aptopts=(-o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages)
+apt_update () {
+    apt-get -yq update >/dev/null || warn "Error in apt-get update" exitnow
+}
+
+apt_install () {
+    apt-get "${aptopts[@]}" -yq install "$@" >/dev/null || warn "Error when trying to install packages: $*" exitnow
+}
+
+apt_upgrade () {
+    apt-get "${aptopts[@]}" -yq dist-upgrade >/dev/null || warn "Error in updating installed packages." exitnow
+}
+
 githubclone=(m0nad/Diamorphine f0rb1dd3n/Reptile h3xduck/TripleCross akamai/Linux-Process-Injection)
 # docker.io/library/python:2.7.18 included for legacy exploitdb scripts.
 containerimages=(docker.io/kalilinux/kali-rolling docker.io/library/python:2.7.18 docker.io/library/python docker.io/library/nginx lscr.io/linuxserver/swag docker.io/library/ubuntu:latest)
@@ -87,7 +93,22 @@ done
 # After getopts: nocasematch would make case patterns match -K as -k.
 shopt -s nocasematch
 
+if [[ $EUID -ne 0 ]]; then
+    warn "This script needs to be run as root." exitnow
+fi
+
+if ! grep -q '/usr/sbin' <<< $PATH; then
+    debug "Changing PATH since it's missing /usr/sbin"
+    export PATH='/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin'
+fi
+
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+if ! which git >/dev/null; then
+    debug "git is not installed, doing that now."
+    apt_update
+    apt_install git
+fi
 
 if ! [[ -d $scriptdir/configs ]]; then
     scriptdir=$(mktemp -d -p /dev/shm)
@@ -249,14 +270,12 @@ else
         fuser -s -k /var/lib/apt/lists/lock
         sleep 1
     fi
-    # Piping apt output to null since the -q flag doesn't get passed to the underlying dpkg for some reason. 
-    # STDERR should still show.
     debug "Updating repos."
-    apt-get -yq update >/dev/null || warn "Error in apt-get update" exitnow
+    apt_update
     debug "Updating installed packages.  This will take a while."
-    apt-get "${aptopts[@]}" -yq dist-upgrade >/dev/null || warn "Error in updating installed packages." exitnow
+    apt_upgrade
     debug "Installing packages, this will take a while."
-    apt-get "${aptopts[@]}" -yq install "${aptpackages[@]}" >/dev/null || warn "Error when trying to install new packages" exitnow
+    apt_install "${aptpackages[@]}"
     debug "Autoremoving things we don't need anymore."
     apt-get -yq autoremove >/dev/null || warn "Error in autoremove." exitnow
     debug "Settings cap_net_bind_service for some binaries (Python, Ruby, netcat, etc) to allow low port-asignment without needing root."
@@ -418,7 +437,7 @@ cp --remove-destination $scriptdir/configs/sbin/update-system.sh $scriptdir/conf
 
 if [[ $(ip link show) =~ 00:0c:29 ]] || ps -ef | grep -q '[v]mtoolsd'; then
     debug "VMWare Specific, installing vmware-tools and adding vmware helper scripts."
-    apt-get "${aptopts[@]}" -yq install open-vm-tools-desktop
+    apt_install open-vm-tools-desktop
     cp --remove-destination $scriptdir/configs/sbin/mount-shared-folders $scriptdir/configs/sbin/restart-vm-tools /usr/local/sbin/
     /usr/local/sbin/mount-shared-folders
 fi
