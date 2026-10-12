@@ -58,6 +58,7 @@ fi
 # Variables and settings
 export DEBIAN_FRONTEND=noninteractive
 aptpackages=(vim htop terminator git libssl-dev libffi-dev python3-dev python3-pip pipx python3-venv tcpdump sshpass xterm colordiff mingw-w64 plocate podman podman-docker)
+aptopts=(-o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages)
 githubclone=(m0nad/Diamorphine f0rb1dd3n/Reptile h3xduck/TripleCross akamai/Linux-Process-Injection)
 # docker.io/library/python:2.7.18 included for legacy exploitdb scripts.
 containerimages=(docker.io/kalilinux/kali-rolling docker.io/library/python:2.7.18 docker.io/library/python docker.io/library/nginx lscr.io/linuxserver/swag docker.io/library/ubuntu:latest)
@@ -170,25 +171,12 @@ as_home_owner () {
 }
 
 # Pull $1 (http(s)://[user[:pass]@]host/path) to $2 with mode ${3:-600}.
+# curl parses embedded credentials itself and prompts if only a user is given.
 pull_url () {
     local url=$1 dest=$2 mode=${3:-600}
-    local scheme=${url%%://*} rest=${url#*://} userinfo= user= pass=
-    [[ $scheme == http || $scheme == https ]] || { echo "Only http(s) URLs supported: $url" >&2; return 1; }
-    # logic for working with special characters. Not tested much since I use xkcd style.
-    if [[ $rest == *@* ]]; then
-        userinfo=${rest%@*}                 # last @, so @ survives in passwords
-        rest=${rest##*@}
-        user=${userinfo%%:*}                # first colon, so colons survive in passwords
-        [[ $userinfo == *:* ]] && pass=${userinfo#*:}
-    fi
-    [[ $rest == */* ]] || { echo "URL needs host and path: $url" >&2; return 1; }
     local args=(-fsSL)
-    [[ ${insecure:-} ]] && args+=(--insecure)
-    if [[ $user ]]; then
-        [[ $userinfo == *:* ]] || { read -rsp "Password for $user@${rest%%/*}: " pass; echo; }
-        args+=(-u "$user:$pass")
-    fi
-    curl "${args[@]}" "$scheme://$rest" -o "$dest" || { rm -f "$dest"; return 1; }
+    [[ $insecure ]] && args+=(--insecure)
+    curl "${args[@]}" "$url" -o "$dest" || { rm -f "$dest"; return 1; }
     chmod "$mode" "$dest"
 }
 
@@ -266,9 +254,9 @@ else
     debug "Updating repos."
     apt-get -yq update >/dev/null || warn "Error in apt-get update" exitnow
     debug "Updating installed packages.  This will take a while."
-    apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq dist-upgrade >/dev/null || warn "Error in updating installed packages." exitnow
+    apt-get "${aptopts[@]}" -yq dist-upgrade >/dev/null || warn "Error in updating installed packages." exitnow
     debug "Installing packages, this will take a while."
-    apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install "${aptpackages[@]}" >/dev/null || warn "Error when trying to install new packages" exitnow
+    apt-get "${aptopts[@]}" -yq install "${aptpackages[@]}" >/dev/null || warn "Error when trying to install new packages" exitnow
     debug "Autoremoving things we don't need anymore."
     apt-get -yq autoremove >/dev/null || warn "Error in autoremove." exitnow
     debug "Settings cap_net_bind_service for some binaries (Python, Ruby, netcat, etc) to allow low port-asignment without needing root."
@@ -313,7 +301,7 @@ else
     debug "Set up git repos in /opt"
     pushd /opt
     for repo in "${githubclone[@]}"; do
-        dir=$(echo $repo | cut -d'/' -f2)
+        dir=${repo#*/}
         if [[ -d $dir ]]; then
             pushd $dir
             git pull
@@ -430,7 +418,7 @@ cp --remove-destination $scriptdir/configs/sbin/update-system.sh $scriptdir/conf
 
 if [[ $(ip link show) =~ 00:0c:29 ]] || ps -ef | grep -q '[v]mtoolsd'; then
     debug "VMWare Specific, installing vmware-tools and adding vmware helper scripts."
-    apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install open-vm-tools-desktop
+    apt-get "${aptopts[@]}" -yq install open-vm-tools-desktop
     cp --remove-destination $scriptdir/configs/sbin/mount-shared-folders $scriptdir/configs/sbin/restart-vm-tools /usr/local/sbin/
     /usr/local/sbin/mount-shared-folders
 fi
