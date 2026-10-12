@@ -1,42 +1,4 @@
-ps1rename () {
-    if [[ $1 == 'bw' ]]; then
-        export PS1="\t [${@:2}]\\$ "
-        # unalias colorful aliases
-        unalias ls grep egrep fgrep diff 2>/dev/null
-    else 
-        export PS1="${lred}\t${def} ${lblu}[${@}]${def}\\$ "
-    fi
-}
-
-export PAGER=less
-export SYSTEMD_PAGER=less
-export HISTSIZE=10000
-export HISTFILESIZE=10000
-# Turn off beep
-if which xset >/dev/null 2>&1 && [[ $DISPLAY ]]; then
-    xset b off
-fi
-
-# Fix lines
-shopt -s checkwinsize
-
-# Bash Color Variables
-cb='\[\033['; ce='\]'; def="${cb}0m${ce}"
-blk="${cb}30m${ce}" ; red="${cb}31m${ce}"
-grn="${cb}33m${ce}"; ylw="${cb}33m${ce}"
-blu="${cb}34m${ce}"; mag="${cb}35m${ce}"
-cyn="${cb}36m${ce}"; gry="${cb}37m${ce}"
-lred="${cb}91m${ce}"; lgrn="${cb}92m${ce}"
-lylw="${cb}93m${ce}"; lblu="${cb}94m${ce}"
-lmag="${cb}95m${ce}"; lcyn="${cb}96m${ce}"
-lgry="${cb}97m${ce}"
-export PS1="${lred}\t${def} ${cyn}\h${def}:${lblu}\w${def}\\$ "
-
-if [[ -f $HOME/.mypath ]]; then
-    source $HOME/.mypath
-else
-    export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:~/bin
-fi
+# General-purpose aliases
 
 alias ls='ls --color=auto'
 alias l='ls'
@@ -46,6 +8,9 @@ alias l.='ls -d .*'
 alias lt='ls -ltr'
 alias ll.='ls -la'
 alias lt.='ls -latr'
+
+# herpderp
+alias damnit='sudo $(history -p \!\!)'
 
 ## get rid of command not found ##
 alias cd..='cd ..'
@@ -73,7 +38,7 @@ alias sha1='openssl sha1'
 alias mkdir='mkdir -pv'
 
 # install  colordiff package :)
-if which colordiff >/dev/null 2>&1; then
+if command -v colordiff >/dev/null 2>&1; then
     alias diff='colordiff'
 fi
 
@@ -91,12 +56,12 @@ alias nowdate='date +"%d-%m-%Y"'
 alias epoch='date +%s'
 
 # ViMproved
-alias vi=vim
-alias vis='vim "+set si"'
-alias edit='vim'
-
-# Get open ports
-alias ports='netstat -tulanp'
+if command -v vim >/dev/null 2>&1; then
+    alias vi=vim
+    alias svi='sudo vi'
+    alias vis='vim "+set si"'
+    alias edit='vim'
+fi
 
 # get web server headers #
 alias header='curl -I'
@@ -112,6 +77,13 @@ alias chown='chown --preserve-root'
 alias chmod='chmod --preserve-root'
 alias chgrp='chgrp --preserve-root'
 
+## this one saved by butt so many times -- auto-resume wget! ##
+alias wget='wget -c'
+
+## set some other defaults ##
+alias df='df -H'
+alias du='du -ch'
+
 ## pass options to free ##
 alias meminfo='free -m -l -t'
 
@@ -126,15 +98,7 @@ alias pscpu10='ps auxf | sort -nr -k 3 | head -10'
 ## Get server cpu info ##
 alias cpuinfo='lscpu'
 
-## this one saved by butt so many times -- auto-resume wget! ##
-alias wget='wget -c'
-
-## set some other defaults ##
-alias df='df -H'
-alias du='du -ch'
-
 # top is atop, just like vi is vim
-alias top='htop'
-
-# Docker
-alias dockerclean="docker ps -a | grep Exited | grep -oP '^[a-z0-9]{12}' | xargs docker rm"
+if command -v htop >/dev/null 2>&1; then
+    alias top='htop'
+fi

@@ -1,0 +1,14 @@
+[Unit]
+Description=Start Metasploit database and mount VMware shared folders
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 10
+ExecStart=/usr/bin/msfdb start
+ExecStartPost=-/usr/local/sbin/mount-shared-folders
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -11,18 +11,21 @@
 #############################################
 
 usage () {
-    echo -e "\e[94m$0 [-d] [-p] [-r] [-l] [-g] [-s]\e[0m"
-    echo -e "\t-d Don't install any docker containers."
-    echo -e "\t-p Don't install PTF."
+    echo -e "\e[94m$0 [-d] [-l] [-u USER] [-g] [-s USER] [-k URL] [-K URL] [--insecure] [-c] [-b] [-a] [-q]\e[0m"
+    echo -e "\t-d Don't pull any container images."
     echo -e "\t-l Don't setup a user to log in automatically."
     echo -e "\t-u Set the automatic login user.  Defaults to kali (if present) or root."
     echo -e "\t-g Don't clone select repos from github to /opt."
     echo -e "\t-s USER Install SSH Keys for USER from github.com."
-    echo -e "\t   Optional HTTP(S) SSHKEYURL environment variable to pull private key from."
-    echo -e "\t   Remember to use sudo -E (SSHKEYURL=http://192.168.0.10:8080/id_rsa sudo -E ./setup.sh -fs username)"
+    echo -e "\t-k URL Pull a SSH private key from an HTTP(S) URL (basic auth optional:"
+    echo -e "\t   https://user:password@host/key). Also pulls URL.pub if it exists."
+    echo -e "\t   Implies sshd hardening. Prompts if user given without password."
+    echo -e "\t   Falls back to the SSHKEYURL environment variable (use sudo -E)."
+    echo -e "\t-K URL Pull the API keys file for ~/.bashrc.d the same way (env: APIKEY_URL)."
+    echo -e "\t--insecure Don't verify TLS certs for -k/-K pulls."
     echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
-    echo -e "\t-f Instead of this repo's dotfiles, pull 'dotfiles' from github user and run setup.sh if it exists."
     echo -e "\t-b Skip pulling Exploit Database's Binary Exploits."
+    echo -e "\t-a Install AI tooling (opencode, litellm) for root and the autologin user."
     echo -e "\t-q Don't show debug messages"
     echo -e "\t-h This message"
     exit 1
@@ -37,7 +40,6 @@ debug () {
 
 warn () {
     echo -e "\e[93mWARNING:  $1\e[0m"
-    # Sometimes commands are going to fail and not be fatal, so instead of set -e do this on important things.
     if [[ $2 =~ exitnow ]]; then
         exit 1
     fi
@@ -54,34 +56,35 @@ if ! grep -q '/usr/sbin' <<< $PATH; then
 fi
 
 # Variables and settings
-# Case insensitive matching for regex
-shopt -s nocasematch
-# (Try to) stop apt from asking stupid questions
 export DEBIAN_FRONTEND=noninteractive
-# Packages to install after update.
-aptpackages=(vim htop veil-* terminator git libssl1.0-dev libffi-dev python2.7-dev python3-dev python3-pip tcpdump python3-virtualenv sshpass xterm colordiff mingw-w64)
-githubclone=(chokepoint/azazel gaffe23/linux-inject nathanlopez/Stitch mncoppola/suterusu nurupo/rootkit m0nad/Diamorphine)
-dockercontainers=(kalilinux/kali-rolling python:2.7 python nginx linuxserver/letsencrypt ubuntu:latest phusion/holy-build-box-32 phusion/holy-build-box-64)
+aptpackages=(vim htop terminator git libssl-dev libffi-dev python3-dev python3-pip pipx python3-venv tcpdump sshpass xterm colordiff mingw-w64 plocate podman podman-docker)
+githubclone=(m0nad/Diamorphine f0rb1dd3n/Reptile h3xduck/TripleCross akamai/Linux-Process-Injection)
+# docker.io/library/python:2.7.18 included for legacy exploitdb scripts.
+containerimages=(docker.io/kalilinux/kali-rolling docker.io/library/python:2.7.18 docker.io/library/python docker.io/library/nginx lscr.io/linuxserver/swag docker.io/library/ubuntu:latest)
 verbose=1
-# This is a dirty hack, I'm open to alternatives.
-desktopenvironment=$(ps -A | egrep -v 'polkit' | egrep -o 'gnome|xfce' | tail -1)
-unset skipdocker skipptf skipautologin skipgithub sshuser skipdotfiles skipunpriv skipbinsploits githubdotfiles
-while getopts 'hdplgs:cfbqu' flag; do
+unset skipcontainers skipautologin skipgithub sshuser skipdotfiles skipbinsploits installai sshkeyurl apikeyurl insecure
+args=(); for a in "$@"; do [[ $a == --insecure ]] && insecure=1 || args+=("$a"); done; set -- "${args[@]}"
+while getopts 'hdlgs:u:cbqak:K:' flag; do
     case "${flag}" in
-        d) skipdocker=1 ;;
-        p) skipptf=1 ;;
+        d) skipcontainers=1 ;;
         l) skipautologin=1 ;;
         g) skipgithub=1 ;;
         s) sshuser=${OPTARG} ;;
+        k) sshkeyurl=${OPTARG} ;;
+        K) apikeyurl=${OPTARG} ;;
         c) skipdotfiles=1 ;;
-        f) githubdotfiles=1 ;;
         b) skipbinsploits=1 ;;
+        a) installai=1 ;;
         q) verbose=0 ;;
         u) autologinuser=${OPTARG} ;;
         h) usage ;;
         *) usage ;;
     esac
 done
+: "${sshkeyurl:=$SSHKEYURL}"
+: "${apikeyurl:=$APIKEY_URL}"
+# After getopts: nocasematch would make case patterns match -K as -k.
+shopt -s nocasematch
 
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
@@ -99,6 +102,96 @@ elif [[ $autologinuser ]] && ! grep -q "$autologinuser" /etc/passwd; then
     warn "Automatic login user of $autologinuser not detected." exitnow
 fi
 
+# Allows dconf/xfconf writesto persist even if not in a GUI.
+as_user_dbus () {
+    if [[ $autologinuser == "root" ]]; then
+        dbus-run-session -- "$@"
+    else
+        sudo -u $autologinuser dbus-run-session -- "$@"
+    fi
+}
+
+# set xfce settings
+xfconf_set () {
+    # $1 channel, $2 property, $3 type, $4 value
+    as_user_dbus xfconf-query -c "$1" -p "$2" -s "$4" 2>/dev/null || \
+        as_user_dbus xfconf-query -c "$1" -p "$2" -n -t "$3" -s "$4"
+}
+
+pull_image () {
+    if [[ $autologinuser == "root" ]]; then
+        podman pull "$1"
+    else
+        if ! sudo -u $autologinuser XDG_RUNTIME_DIR=/run/user/"$(id -u $autologinuser)" podman pull "$1"; then
+            warn "Rootless pull of $1 failed, pulling as root instead."
+            podman pull "$1"
+        fi
+    fi
+}
+
+# Install bashrc.d snippets and hook the loader into .bashrc.
+install_bashrc_d () {
+    local home=$1
+    local manifest="$home/.bashrc.d/.kali-setup-installed"
+    mkdir -p "$home/.bashrc.d"
+    # Remove snippets that have left the repo; user-added files stay.
+    cat "$manifest" 2>/dev/null | while read -r name; do
+        [[ $name && $name != */* && ! -e $scriptdir/configs/bashrc.d/$name ]] && rm -f "$home/.bashrc.d/$name"
+    done
+    cp --remove-destination "$scriptdir"/configs/bashrc.d/*.sh "$home/.bashrc.d/"
+    (cd "$scriptdir/configs/bashrc.d" && printf '%s\n' *.sh) > "$manifest"
+    if ! grep -q '\.bashrc\.d' "$home/.bashrc" 2>/dev/null; then
+        cat >> "$home/.bashrc" <<'EOF'
+
+# Load per-topic config from ~/.bashrc.d/ (sourced in name order)
+if [ -d ~/.bashrc.d ]; then
+    for rc in ~/.bashrc.d/*.sh; do
+        [ -r "$rc" ] && . "$rc"
+    done
+    unset rc
+fi
+EOF
+    fi
+    if [[ ! -e $home/.bashrc.d/15-api-keys.sh ]]; then
+        install -m 600 /dev/null "$home/.bashrc.d/15-api-keys.sh"
+        echo '# rc file for API keys and tokens.' > "$home/.bashrc.d/15-api-keys.sh"
+    fi
+}
+
+# Run a command as the home's owner with HOME set.
+as_home_owner () {
+    local home=$1
+    shift
+    if [[ $home == /root ]]; then
+        env HOME=/root "$@"
+    else
+        sudo -Hu $autologinuser "$@"
+    fi
+}
+
+# Pull $1 (http(s)://[user[:pass]@]host/path) to $2 with mode ${3:-600}.
+pull_url () {
+    local url=$1 dest=$2 mode=${3:-600}
+    local scheme=${url%%://*} rest=${url#*://} userinfo= user= pass=
+    [[ $scheme == http || $scheme == https ]] || { echo "Only http(s) URLs supported: $url" >&2; return 1; }
+    # logic for working with special characters. Not tested much since I use xkcd style.
+    if [[ $rest == *@* ]]; then
+        userinfo=${rest%@*}                 # last @, so @ survives in passwords
+        rest=${rest##*@}
+        user=${userinfo%%:*}                # first colon, so colons survive in passwords
+        [[ $userinfo == *:* ]] && pass=${userinfo#*:}
+    fi
+    [[ $rest == */* ]] || { echo "URL needs host and path: $url" >&2; return 1; }
+    local args=(-fsSL)
+    [[ ${insecure:-} ]] && args+=(--insecure)
+    if [[ $user ]]; then
+        [[ $userinfo == *:* ]] || { read -rsp "Password for $user@${rest%%/*}: " pass; echo; }
+        args+=(-u "$user:$pass")
+    fi
+    curl "${args[@]}" "$scheme://$rest" -o "$dest" || { rm -f "$dest"; return 1; }
+    chmod "$mode" "$dest"
+}
+
 if [[ -f /root/.firstrun ]]; then
     debug "Looks like we rebooted after a kernel update... not running initial updates."
 else
@@ -115,60 +208,46 @@ else
         chmod 700 /home/$autologinuser/.ssh
         chown $autologinuser:$autologinuser /home/$autologinuser/.ssh
     fi
-    if [[ $SSHKEYURL ]]; then
-        debug "Pulling $SSHKEYURL and saving to root and ${autologinuser}."
-        FILENAME=$(basename $SSHKEYURL)
-        curl -sSLo /root/.ssh/$FILENAME $SSHKEYURL || exit 1
-        chmod 600 /root/.ssh/$FILENAME
+    if [[ $sshkeyurl ]]; then
+        debug "Pulling $sshkeyurl and saving to root and ${autologinuser}."
+        FILENAME=$(basename "${sshkeyurl#*://}")
+        pull_url "$sshkeyurl" "/root/.ssh/$FILENAME" || warn "Error pulling SSH private key." exitnow
+        pull_url "${sshkeyurl}.pub" "/root/.ssh/$FILENAME.pub" 644 2>/dev/null
         if [[ $autologinuser != "root" ]]; then
-            cp /root/.ssh/$FILENAME /home/$autologinuser/.ssh/$FILENAME
-            chown $autologinuser:$autologinuser /home/$autologinuser/.ssh/$FILENAME
+            cp "/root/.ssh/$FILENAME" "/home/$autologinuser/.ssh/$FILENAME"
+            [[ -f /root/.ssh/$FILENAME.pub ]] && cp "/root/.ssh/$FILENAME.pub" "/home/$autologinuser/.ssh/$FILENAME.pub"
+            chown $autologinuser:$autologinuser "/home/$autologinuser/.ssh/$FILENAME"*
         fi
     fi
     if [[ $autologinuser != "root" ]]; then
         debug "Setting up passwordless sudo for the sudo group."
         sed -i 's/.*%sudo.*/%sudo         ALL = (ALL) NOPASSWD: ALL/g' /etc/sudoers
     fi
-    if [[ $desktopenvironment == "gnome" ]]; then
-        debug "Turning off power management, animations, and the screensaver."
-        sudo -u $autologinuser gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
-        sudo -u $autologinuser gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout '0'
-        sudo -u $autologinuser gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'
-        sudo -u $autologinuser gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout '0'
-        sudo -u $autologinuser gsettings set org.gnome.desktop.session idle-delay '0'
-        sudo -u $autologinuser gsettings set org.gnome.desktop.screensaver lock-enabled false
-        sudo -u $autologinuser gsettings set org.gnome.desktop.interface enable-animations false
-        if ! [[ $skipautologin ]]; then
-            debug "Setting up $autologinuser to automatically log in."
-            sed -i "s/^#.*AutomaticLoginEnable/AutomaticLoginEnable/g ; s/#.*AutomaticLogin .*/AutomaticLogin = $autologinuser/g" /etc/gdm3/daemon.conf
+
+    debug "Switching from zsh to bash because zsh is annoying."
+    for user in root $autologinuser; do
+        if [[ $(getent passwd $user | cut -d: -f7) != "/bin/bash" ]]; then
+            chsh -s /bin/bash $user
         fi
-    elif [[ $desktopenvironment == "xfce" ]]; then
-        if ! [[ $skipautologin ]]; then
-            debug "Setting up $autologinuser to automatically log in."
-            sed -i "s,^\[Seat:\*\],[Seat:*]\nautologin-guest=false\nautologin-user=$autologinuser\nautologin-user-timeout=0,g" /etc/lightdm/lightdm.conf
-            if [[ $autologinuser != "root" ]]; then
-                debug "Don't have chromium ask for keyring."
-                sed -i 's#/usr/bin/chromium %U#/usr/bin/chromium --password-store=basic %U#g' $(grep -irl 'Name=Chromium Web Browser' /home/$autologinuser/.config/xfce4/) /usr/share/applications/chromium.desktop
-            fi
-        fi
-        debug "Turning off power management, animations, and the screensaver."
-        sudo -u $autologinuser gsettings set org.gnome.desktop.session idle-delay '0'
-        sudo -u $autologinuser gsettings set org.gnome.desktop.screensaver lock-enabled false
-        sudo -u $autologinuser gsettings set org.gnome.desktop.interface enable-animations false
-        if [[ $autologinuser = "root" ]]; then
-            if ! [[ -d /root/.config/xfce4/xfconf/xfce-perchannel-xml/ ]]; then
-                mkdir -pv /root/.config/xfce4/xfconf/xfce-perchannel-xml/
-            fi
-            cat $scriptdir/configs/xfce4-power-manager.xml > /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml
-            # xfce4-power-manager --restart
-        else
-            if ! [[ -d /home/$autologinuser/.config/xfce4/xfconf/xfce-perchannel-xml/ ]]; then
-                mkdir -pv /home/$autologinuser/.config/xfce4/xfconf/xfce-perchannel-xml/
-            fi
-            cat $scriptdir/configs/xfce4-power-manager.xml > /root/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-power-manager.xml
-            # sudo -u $autologinuser xfce4-power-manager --restart
+    done
+
+    if ! [[ $skipautologin ]]; then
+        debug "Setting up $autologinuser to automatically log in (lightdm)."
+        sed -i "s,^\[Seat:\*\],[Seat:*]\nautologin-guest=false\nautologin-user=$autologinuser\nautologin-user-timeout=0,g" /etc/lightdm/lightdm.conf
+        if [[ $autologinuser != "root" ]]; then
+            debug "Don't have chromium ask for keyring."
+            sed -i 's#/usr/bin/chromium %U#/usr/bin/chromium --password-store=basic %U#g' $(grep -irl 'Name=Chromium Web Browser' /home/$autologinuser/.config/xfce4/ 2>/dev/null) /usr/share/applications/chromium.desktop 2>/dev/null
         fi
     fi
+    debug "Turning off power management and the screensaver."
+    xfconf_set xfce4-power-manager /xfce4-power-manager/blank-on-ac int 0
+    xfconf_set xfce4-power-manager /xfce4-power-manager/dpms-on-ac-sleep uint 0
+    xfconf_set xfce4-power-manager /xfce4-power-manager/dpms-on-ac-off uint 0
+    xfconf_set xfce4-power-manager /xfce4-power-manager/dpms-enabled bool true
+    xfconf_set xfce4-screensaver /saver/enabled bool false
+    xfconf_set xfce4-screensaver /saver/idle-activation/enabled bool false
+    xfconf_set xfce4-screensaver /lock/enabled bool false
+
     debug "Removing built in SSH keys"
     rm -f /etc/ssh/ssh_host_*
     dpkg-reconfigure openssh-server > /dev/null
@@ -176,19 +255,20 @@ else
     debug "Updating everything.  Stopping packagekitd for some releases of Kali."
     systemctl stop packagekit
     systemctl disable packagekit
-    # Sometimes a child processs from the auto update keeps running.
+    # Sometimes a child process from the auto update keeps running.
     if [[ -f /var/lib/apt/lists/lock ]]; then
         sleep 1
         fuser -s -k /var/lib/apt/lists/lock
         sleep 1
     fi
-    # Piping apt output to null since the -q flag doesn't get passed to the underlying dpkg for some reason. STDERR should still show.
+    # Piping apt output to null since the -q flag doesn't get passed to the underlying dpkg for some reason. 
+    # STDERR should still show.
     debug "Updating repos."
     apt-get -yq update >/dev/null || warn "Error in apt-get update" exitnow
     debug "Updating installed packages.  This will take a while."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq dist-upgrade >/dev/null || warn "Error in updating installed packages." exitnow
     debug "Installing packages, this will take a while."
-    apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install ${aptpackages[@]} >/dev/null || warn "Error when trying to install new packages" exitnow
+    apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install "${aptpackages[@]}" >/dev/null || warn "Error when trying to install new packages" exitnow
     debug "Autoremoving things we don't need anymore."
     apt-get -yq autoremove >/dev/null || warn "Error in autoremove." exitnow
     debug "Settings cap_net_bind_service for some binaries (Python, Ruby, netcat, etc) to allow low port-asignment without needing root."
@@ -203,7 +283,6 @@ if [[ $ondisk == *${running}* ]] || ! [[ -f /var/run/reboot-required ]]; then
     debug "Looks good ... continuing."
 else
     warn "Looks like we need to reboot due to an update."
-    echo "You're probably going to want to reboot and run this script again to avoid errors with PTF."
     read -p "Reboot? [Y/n]"
     if [[ ${REPLY,,} =~ ^n ]]; then
         warn "Ok, if you say so ..."
@@ -212,15 +291,18 @@ else
     fi
 fi
 
-if [[ $sshuser ]]; then
-    debug "Adding ${sshuser}'s github keys."
-    curl -s https://github.com/${sshuser}.keys > /root/.ssh/authorized_keys || exit 1
-    if [[ $autologinuser != "root" ]]; then
-        cp /root/.ssh/authorized_keys /home/$autologinuser/.ssh/
-        chmod 600 /root/.ssh/authorized_keys /home/$autologinuser/.ssh/authorized_keys
-        chown $autologinuser:$autologinuser /home/$autologinuser/.ssh /home/$autologinuser/.ssh/authorized_keys
+if [[ $sshuser || $sshkeyurl ]]; then
+    if [[ $sshuser ]]; then
+        debug "Adding ${sshuser}'s github keys."
+        curl -s https://github.com/${sshuser}.keys > /root/.ssh/authorized_keys || exit 1
+        if [[ $autologinuser != "root" ]]; then
+            cp /root/.ssh/authorized_keys /home/$autologinuser/.ssh/
+            chmod 600 /root/.ssh/authorized_keys /home/$autologinuser/.ssh/authorized_keys
+            chown $autologinuser:$autologinuser /home/$autologinuser/.ssh /home/$autologinuser/.ssh/authorized_keys
+        fi
     fi
-    sed -i 's,.*PermitRootLogin.*,PermitRootLogin prohibit-password,g ; s,.*ChallengeResponseAuthentication.*,ChallengeResponseAuthentication no,g ; s,.*PasswordAuthentication.*,PasswordAuthentication no,g' /etc/ssh/sshd_config
+    debug "Hardening and enabling sshd."
+    sed -i 's,.*PermitRootLogin.*,PermitRootLogin prohibit-password,g ; s,.*KbdInteractiveAuthentication.*,KbdInteractiveAuthentication no,g ; s,.*PasswordAuthentication.*,PasswordAuthentication no,g' /etc/ssh/sshd_config
     systemctl enable ssh
     systemctl start ssh
 fi
@@ -228,7 +310,7 @@ fi
 if [[ $skipgithub ]]; then
     debug "Not pulling select repos from github."
 else
-    debug "Set up non-ptf git repos"
+    debug "Set up git repos in /opt"
     pushd /opt
     for repo in "${githubclone[@]}"; do
         dir=$(echo $repo | cut -d'/' -f2)
@@ -243,98 +325,122 @@ else
     popd
 fi
 
-if [[ $skipptf ]]; then
-    debug "Skipping PTF install."
+if [[ $skipcontainers ]]; then
+    debug "Skipping containers"
 else
-    debug "Grabbing PTF from github."
-    git clone  https://github.com/trustedsec/ptf /opt/ptf
-    cp $scriptdir/configs/ptf_config /opt/ptf/config/ptf.config
-    debug "Set up PTF.  PTF requires --update-all to be run in its working directory."
-    pushd /opt/ptf
-    echo -en "use modules/install_update_all\nyes\n" | python3 ptf
-    popd
-fi
-
-if [[ $skipdocker ]]; then
-    debug "Skipping docker"
-else
-    debug "Installing Docker"
-    apt-get install -y docker.io
-    debug "Set up docker"
-    systemctl enable docker
-    systemctl stop docker
-    systemctl daemon-reload
-    systemctl start docker
-    for image in ${dockercontainers[@]}; do
-        docker pull $image
+    if [[ $autologinuser != "root" ]]; then
+        loginctl enable-linger $autologinuser
+    fi
+    for image in "${containerimages[@]}"; do
+        debug "Pulling $image"
+        pull_image $image
     done
 fi
 
 if [[ $skipbinsploits ]]; then
     debug "Skipping pulling binary exploits."
 else
-    git clone https://github.com/offensive-security/exploit-database-bin-sploits/ /opt/bin-sploits/
+    git clone https://gitlab.com/exploit-database/exploitdb-bin-sploits /opt/bin-sploits/
 fi
 
-if [[ $githubdotfiles ]]; then
-    # git throws a hissy fit for some reason when run as root.
-    debug "Fixing permissions for script directory $scriptdir"
-    chown -R root:$autologinuser $scriptdir
-    chmod 770 $scriptdir
-    debug "Pulling dotfiles from ${sshuser}.  Adding ssh-keys."
-    sudo -u $autologinuser $scriptdir/dotfile-clone.sh $autologinuser $sshuser
-elif [[ $skipdotfiles ]]; then
+if [[ $apikeyurl && $skipdotfiles ]]; then
+    warn "API keys URL given but dotfiles are being skipped (-c)."
+fi
+
+if [[ $skipdotfiles ]]; then
     debug "Skipping setting up dotfiles."
 else
     debug "Updating dotfiles."
-    mkdir -p /root/.config/terminator
-    cp $scriptdir/configs/terminator_config /root/.config/terminator/config
-    cp $scriptdir/configs/bash_aliases /root/.bash_aliases
-    echo 'source /root/.bash_aliases' >> /root/.bashrc
-    cp $scriptdir/configs/vimrc /root/.vimrc
-    if [[ $autologinuser != "root" ]]; then
-        mkdir -p /home/${autologinuser}/.config/terminator
-        cp $scriptdir/configs/terminator_config /home/${autologinuser}/.config/terminator/config
-        cp $scriptdir/configs/vimrc /home/${autologinuser}/.vimrc
-        cp $scriptdir/configs/bash_aliases /home/${autologinuser}/.bash_aliases
-        chown -R $autologinuser:$autologinuser /home/${autologinuser}/.config/ /home/${autologinuser}/.vimrc /home/${autologinuser}/.bash_aliases
+    if [[ $apikeyurl ]]; then
+        apikeytmp=$(mktemp)
+        pull_url "$apikeyurl" "$apikeytmp" || warn "Error pulling API keys file." exitnow
     fi
+    targethomes=(/root)
+    if [[ $autologinuser != "root" ]]; then
+        targethomes+=(/home/$autologinuser)
+    fi
+    for home in "${targethomes[@]}"; do
+        install_bashrc_d "$home"
+        [[ $apikeyurl ]] && install -m 600 "$apikeytmp" "$home/.bashrc.d/15-api-keys.sh"
+        mkdir -p "$home/.config/terminator"
+        cp --remove-destination $scriptdir/configs/terminator_config "$home/.config/terminator/config"
+        cp --remove-destination $scriptdir/configs/vimrc "$home/.vimrc"
+        cp --remove-destination $scriptdir/configs/tmux.conf "$home/.tmux.conf"
+        # Back up a differing pre-existing ssh config.
+        install -d -m 700 "$home/.ssh"
+        if [[ -f $home/.ssh/config && ! -L $home/.ssh/config && ! -e $home/.ssh/config.pre-kali-setup ]] \
+            && ! cmp -s $scriptdir/configs/ssh_config "$home/.ssh/config"; then
+            mv -v "$home/.ssh/config" "$home/.ssh/config.pre-kali-setup"
+        fi
+        rm -f "$home/.ssh/config"
+        install -m 600 $scriptdir/configs/ssh_config "$home/.ssh/config"
+        if [[ $home != /root ]]; then
+            chown -R $autologinuser:$autologinuser "$home/.bashrc.d" "$home/.config" "$home/.ssh" "$home/.vimrc" "$home/.tmux.conf"
+        fi
+    done
+    [[ $apikeyurl ]] && rm -f "$apikeytmp"
+    debug "Applying git hygiene settings."
+    for home in "${targethomes[@]}"; do
+        as_home_owner "$home" git config --global init.defaultBranch main
+        as_home_owner "$home" git config --global pull.ff only
+        as_home_owner "$home" git config --global push.autoSetupRemote true
+        as_home_owner "$home" git config --global fetch.prune true
+        as_home_owner "$home" git config --global rebase.autoStash true
+        as_home_owner "$home" git config --global merge.conflictStyle zdiff3
+        as_home_owner "$home" git config --global rerere.enabled true
+    done
 fi
 
-debug "Misc Kali commands"
+if [[ $installai ]]; then
+    debug "Installing AI tooling (opencode and litellm)."
+    aitargets=(/root)
+    if [[ $autologinuser != "root" ]]; then
+        aitargets+=(/home/$autologinuser)
+    fi
+    for home in "${aitargets[@]}"; do
+        mkdir -p "$home/.local/bin" "$home/.opencode"
+        # v2 installer hardcodes ~/.opencode/bin; symlink into ~/.local/bin.
+        if [[ -d $home/.opencode/bin && ! -L $home/.opencode/bin ]]; then
+            debug "$home/.opencode/bin already exists as a real directory, not symlinking."
+        else
+            ln -sfn "$home/.local/bin" "$home/.opencode/bin"
+        fi
+        if [[ $home != /root ]]; then
+            chown -R $autologinuser:$autologinuser "$home/.local" "$home/.opencode"
+        fi
+        tries=0
+        until as_home_owner "$home" bash -c 'curl -fsSL https://opencode.ai/v2/install | bash -s -- --no-modify-path'; do
+            (( ++tries >= 3 )) && { warn "opencode install failed for $home"; break; }
+            sleep 5
+        done
+        as_home_owner "$home" bash -c 'pipx list --short 2>/dev/null | grep -q ^litellm || pipx install litellm' || warn "litellm install failed for $home"
+        # Fall back to .bashrc for PATH when dotfiles are skipped.
+        if [[ $skipdotfiles ]] && ! grep -q '\.local/bin' "$home/.bashrc" 2>/dev/null; then
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$home/.bashrc"
+        fi
+    done
+fi
+
 debug "MSFDB init"
 msfdb init
 msfdb start
-echo -e '#!/bin/sh\nsleep 10' > /etc/rc.local
-echo "$(which msfdb) start" >> /etc/rc.local
 
-if [[ $(ip link show) =~ 00:0c:29 ]] || ps -ef | grep -q vmtoolsd; then
-    debug "VMWare Specific, installing vmware-tools and adding mount-share-folders script."
+debug "Installing helper scripts to /usr/local/sbin."
+cp --remove-destination $scriptdir/configs/sbin/update-system.sh $scriptdir/configs/sbin/vpn-strict.sh /usr/local/sbin/
+
+if [[ $(ip link show) =~ 00:0c:29 ]] || ps -ef | grep -q '[v]mtoolsd'; then
+    debug "VMWare Specific, installing vmware-tools and adding vmware helper scripts."
     apt-get -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef --allow-downgrades --allow-remove-essential --allow-change-held-packages -yq install open-vm-tools-desktop
-    if ! [[ -e /usr/local/sbin/mount-shared-folders ]]; then
-        cat << EOF > /usr/local/sbin/mount-shared-folders
-#!/bin/sh
-vmware-hgfsclient | while read folder; do
-  vmwpath="/mnt/hgfs/\${folder}"
-  echo "[i] Mounting \${folder}   (\${vmwpath})"
-  sudo mkdir -p "\${vmwpath}"
-  sudo umount -f "\${vmwpath}" 2>/dev/null
-  sudo vmhgfs-fuse -o allow_other -o auto_unmount ".host:/\${folder}" "\${vmwpath}"
-done
-sleep 2s
-EOF
-        sudo chmod +x /usr/local/sbin/mount-shared-folders
-    fi
-    echo "/usr/local/sbin/mount-shared-folders" >> /etc/rc.local
+    cp --remove-destination $scriptdir/configs/sbin/mount-shared-folders $scriptdir/configs/sbin/restart-vm-tools /usr/local/sbin/
     /usr/local/sbin/mount-shared-folders
 fi
 
-echo "exit 0" >> /etc/rc.local
-chmod +x /etc/rc.local
-cp ${scriptdir}/configs/rc-local.service /etc/systemd/system/rc-local.service
-systemctl enable rc-local
+debug "Installing post-boot systemd unit (msfdb + shared folders)."
+cp $scriptdir/configs/msfdb-shared-folders.service /etc/systemd/system/msfdb-shared-folders.service
+systemctl daemon-reload
+systemctl enable msfdb-shared-folders
 
-debug "Update mlocate"
+debug "Running updatedb"
 updatedb
 
 rm -f /root/.firstrun

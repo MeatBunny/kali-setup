@@ -6,6 +6,8 @@ set background=dark
 syntax on
 set nohlsearch
 set mouse-=a
-" notepad.exe-like F5 timestamps
+" notepad.exe like F5 timestamps
 nmap <F5> i<C-R>=strftime("%F %H:%M:%S%t")<CR><Esc>
 imap <F5> <C-R>=strftime("%F %H:%M:%S%t")<CR>
+let g:markdown_folding = 0
+autocmd FileType markdown setlocal conceallevel=2 concealcursor=nc wrap linebreak breakindent
