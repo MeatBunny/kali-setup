@@ -11,7 +11,7 @@
 #############################################
 
 usage () {
-    echo -e "\e[94m$0 [-d] [-l] [-u USER] [-g] [-s USER] [-k URL] [-K URL] [--insecure] [-c] [-b] [-a] [-q]\e[0m"
+    echo -e "\e[94m$0 [-d] [-l] [-u USER] [-g] [-s USER] [-k URL] [-K URL] [--insecure] [-c] [-b] [-a] [-r] [-q]\e[0m"
     echo -e "\t-d Don't pull any container images."
     echo -e "\t-l Don't setup a user to log in automatically."
     echo -e "\t-u Set the automatic login user.  Defaults to kali (if present) or root."
@@ -26,6 +26,7 @@ usage () {
     echo -e "\t-c Don't update config dotfiles (vim, terminator, etc)."
     echo -e "\t-b Skip pulling Exploit Database's Binary Exploits."
     echo -e "\t-a Install AI tooling (opencode, litellm) for root and the autologin user."
+    echo -e "\t-r Install Chrome Remote Desktop. Masks lightdm so the GUI only runs inside CRD."
     echo -e "\t-q Don't show debug messages"
     echo -e "\t-h This message"
     exit 1
@@ -69,9 +70,9 @@ githubclone=(m0nad/Diamorphine f0rb1dd3n/Reptile h3xduck/TripleCross akamai/Linu
 # docker.io/library/python:2.7.18 included for legacy exploitdb scripts.
 containerimages=(docker.io/kalilinux/kali-rolling docker.io/library/python:2.7.18 docker.io/library/python docker.io/library/nginx lscr.io/linuxserver/swag docker.io/library/ubuntu:latest)
 verbose=1
-unset skipcontainers skipautologin skipgithub sshuser skipdotfiles skipbinsploits installai sshkeyurl apikeyurl insecure
+unset skipcontainers skipautologin skipgithub sshuser skipdotfiles skipbinsploits installai installcrd sshkeyurl apikeyurl insecure
 args=(); for a in "$@"; do [[ $a == --insecure ]] && insecure=1 || args+=("$a"); done; set -- "${args[@]}"
-while getopts 'hdlgs:u:cbqak:K:' flag; do
+while getopts 'hdlgs:u:cbqak:K:r' flag; do
     case "${flag}" in
         d) skipcontainers=1 ;;
         l) skipautologin=1 ;;
@@ -82,6 +83,7 @@ while getopts 'hdlgs:u:cbqak:K:' flag; do
         c) skipdotfiles=1 ;;
         b) skipbinsploits=1 ;;
         a) installai=1 ;;
+        r) installcrd=1 ;;
         q) verbose=0 ;;
         u) autologinuser=${OPTARG} ;;
         h) usage ;;
@@ -239,6 +241,33 @@ else
             chsh -s /bin/bash $user
         fi
     done
+
+    if ! which xfce4-session >/dev/null; then
+        debug "No Xfce, installing kali-desktop-xfce."
+        apt_update
+        apt_install kali-desktop-xfce
+    fi
+
+    if [[ $installcrd ]]; then
+        debug "Installing Chrome Remote Desktop."
+        install -d -m 755 /etc/apt/keyrings
+        pull_url https://dl.google.com/linux/linux_signing_key.pub /etc/apt/keyrings/google-linux.asc 644 || warn "Error pulling Google's apt key." exitnow
+        cat > /etc/apt/sources.list.d/chrome-remote-desktop.sources <<'EOF'
+Types: deb
+URIs: https://dl.google.com/linux/chrome-remote-desktop/deb
+Suites: stable
+Components: main
+Architectures: amd64
+Signed-By: /etc/apt/keyrings/google-linux.asc
+EOF
+        apt_update
+        apt_install chrome-remote-desktop
+        # xset: X's own screensaver blanks the CRD session after 10 minutes.
+        printf 'xset s off\nexec /etc/X11/Xsession /usr/bin/xfce4-session\n' > /etc/chrome-remote-desktop-session
+        debug "Masking lightdm so X11 only runs inside CRD."
+        systemctl set-default multi-user.target
+        systemctl mask lightdm
+    fi
 
     if ! [[ $skipautologin ]]; then
         debug "Setting up $autologinuser to automatically log in (lightdm)."
@@ -449,5 +478,15 @@ systemctl enable msfdb-shared-folders
 
 debug "Running updatedb"
 updatedb
+
+if [[ $installcrd ]]; then
+    crdhome=/root; [[ $autologinuser != root ]] && crdhome=/home/$autologinuser
+    if compgen -G "$crdhome/.config/chrome-remote-desktop/host#*.json" >/dev/null; then
+        debug "CRD already activated, enabling the service."
+        systemctl enable --now chrome-remote-desktop@$autologinuser
+    else
+        warn "CRD needs activating: open https://remotedesktop.google.com/headless, copy the Debian Linux command and run it as $autologinuser (sudo -iu $autologinuser). Don't rename this host afterwards."
+    fi
+fi
 
 rm -f /root/.firstrun

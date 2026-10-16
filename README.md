@@ -2,6 +2,8 @@
 
 Setup script to add extra tools and sensible configs to a Kali install (XFCE only, VMWare focused) from various git repositories.
 
+1. Installs Xfce (`kali-desktop-xfce`) if the machine has no desktop.
+1. Optionally (`-r`) installs Chrome Remote Desktop and masks lightdm, so the desktop exists only inside CRD. Activation is by hand; the script prints the steps.
 1. Sets up autologin for specified users (default kali).
 1. Pulls podman container images and clones Github repositories.
 1. Sets up dotfiles: modular `~/.bashrc.d` snippets (with a private, mode-600 `15-api-keys.sh` placeholder for secrets), plus vim, tmux, terminator, and ssh configs.
